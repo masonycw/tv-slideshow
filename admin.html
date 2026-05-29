@@ -18,12 +18,16 @@
       box-shadow:0 2px 8px rgba(0,0,0,.3);
     }
     header h1 { font-size:16px; font-weight:600; flex:1; }
-    #key-form  { display:flex; gap:8px; align-items:center; }
-    #key-input {
+    #auth-form { display:flex; gap:8px; align-items:center; }
+    #auth-form input {
       padding:6px 11px; border:1px solid rgba(255,255,255,.2); border-radius:7px;
-      font-size:13px; width:260px; background:rgba(255,255,255,.08); color:#fff; outline:none;
+      font-size:13px; background:rgba(255,255,255,.08); color:#fff; outline:none;
     }
-    #key-input::placeholder { color:rgba(255,255,255,.35); }
+    #auth-form input::placeholder { color:rgba(255,255,255,.35); }
+    #auth-email { width:180px; }
+    #auth-password { width:130px; }
+    #user-info { display:none; align-items:center; gap:10px; font-size:13px; color:rgba(255,255,255,.7); }
+    #user-info.show { display:flex; }
 
     .btn {
       padding:6px 14px; border:none; border-radius:7px; cursor:pointer;
@@ -207,10 +211,15 @@
 
 <header>
   <h1>輪播管理</h1>
-  <div id="key-form">
-    <input type="password" id="key-input" placeholder="Supabase Service Role Key">
-    <button class="btn btn-green" id="connect-btn">連線</button>
-    <a class="btn btn-ghost" id="preview-link" href="index.html" target="_blank">預覽展示頁</a>
+  <div id="auth-form">
+    <input type="email" id="auth-email" placeholder="Email">
+    <input type="password" id="auth-password" placeholder="密碼">
+    <button class="btn btn-green" id="login-btn">登入</button>
+  </div>
+  <div id="user-info">
+    <span id="user-email-display"></span>
+    <button class="btn btn-ghost btn-sm" id="logout-btn">登出</button>
+    <a class="btn btn-ghost btn-sm" id="preview-link" href="index.html" target="_blank">預覽展示頁</a>
   </div>
 </header>
 
@@ -297,11 +306,12 @@
 
 <script>
 const { createClient } = window.supabase;
-let adminClient = null;
-let channels    = [];
-let curChannel  = null;
-let items       = [];
-let dragSrc     = null;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let channels   = [];
+let curChannel = null;
+let items      = [];
+let dragSrc    = null;
 
 /* ── UI helpers ── */
 function showStatus(msg, isErr = false) {
@@ -316,24 +326,46 @@ function setLoading(on, msg = '處理中...') {
   document.getElementById('loading-overlay').classList.toggle('show', on);
 }
 
-/* ── Connect ── */
-async function connect() {
-  const key = document.getElementById('key-input').value.trim();
-  if (!key) { showStatus('請輸入 Service Role Key', true); return; }
-  const client = createClient(SUPABASE_URL, key, { auth:{ autoRefreshToken:false, persistSession:false } });
-  const { error } = await client.from('slideshow_channels').select('id').limit(1);
-  if (error) { showStatus('連線失敗：' + error.message, true); return; }
-  adminClient = client;
-  sessionStorage.setItem('sb_srk', key);
-  showStatus('連線成功');
-  await loadChannels();
+/* ── Auth ── */
+async function login() {
+  const email    = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  if (!email || !password) { showStatus('請輸入 Email 和密碼', true); return; }
+  const { data, error } = await db.auth.signInWithPassword({ email, password });
+  if (error) { showStatus('登入失敗：' + error.message, true); return; }
+  onSignedIn(data.user);
 }
-document.getElementById('connect-btn').addEventListener('click', connect);
-document.getElementById('key-input').addEventListener('keydown', e => { if (e.key === 'Enter') connect(); });
+
+function onSignedIn(user) {
+  document.getElementById('auth-form').style.display = 'none';
+  document.getElementById('user-info').classList.add('show');
+  document.getElementById('user-email-display').textContent = user.email;
+  showStatus('登入成功');
+  loadChannels();
+}
+
+async function logout() {
+  await db.auth.signOut();
+  document.getElementById('auth-form').style.display = '';
+  document.getElementById('user-info').classList.remove('show');
+  document.getElementById('ch-bar').innerHTML = '<span style="font-size:13px;color:#999;padding:0 4px">尚未登入</span>';
+  document.getElementById('ch-settings').classList.remove('show');
+  document.getElementById('photo-grid').innerHTML = '<div class="grid-empty">請登入後使用</div>';
+  channels = []; curChannel = null; items = [];
+}
+
+document.getElementById('login-btn').addEventListener('click', login);
+document.getElementById('auth-password').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+document.getElementById('logout-btn').addEventListener('click', logout);
+
+// 自動恢復登入狀態
+db.auth.getSession().then(({ data: { session } }) => {
+  if (session) onSignedIn(session.user);
+});
 
 /* ── Channels ── */
 async function loadChannels() {
-  const { data } = await adminClient.from('slideshow_channels').select('*').order('created_at');
+  const { data } = await db.from('slideshow_channels').select('*').order('created_at');
   channels = data || [];
   renderChannelBar();
   if (channels.length > 0) selectChannel(channels[0]);
@@ -393,7 +425,7 @@ async function saveChannelSettings() {
   if (!name) { showStatus('請輸入頻道名稱', true); return; }
   if (isNaN(interval) || interval < 2000) { showStatus('停留秒數最少 2 秒', true); return; }
 
-  const { error } = await adminClient.from('slideshow_channels')
+  const { error } = await db.from('slideshow_channels')
     .update({ name, interval_ms: interval, sync_enabled: sync })
     .eq('id', curChannel.id);
   if (error) { showStatus('儲存失敗：' + error.message, true); return; }
@@ -411,7 +443,7 @@ document.getElementById('ch-sync').addEventListener('change', function() {
 
 async function deleteChannelById(id) {
   setLoading(true, '刪除頻道...');
-  const { error } = await adminClient.from('slideshow_channels').delete().eq('id', id);
+  const { error } = await db.from('slideshow_channels').delete().eq('id', id);
   setLoading(false);
   if (error) { showStatus('刪除失敗：' + error.message, true); return; }
   channels = channels.filter(c => c.id !== id);
@@ -444,7 +476,7 @@ async function createChannel() {
   if (!name) { showStatus('請輸入名稱', true); return; }
   if (!slug || !/^[a-z0-9-]+$/.test(slug)) { showStatus('Slug 只能用小寫英文、數字、連字號', true); return; }
 
-  const { data, error } = await adminClient.from('slideshow_channels')
+  const { data, error } = await db.from('slideshow_channels')
     .insert({ name, slug, interval_ms: 8000, sync_enabled: true })
     .select().single();
   if (error) { showStatus('建立失敗：' + error.message, true); return; }
@@ -459,8 +491,8 @@ async function createChannel() {
 
 /* ── Items ── */
 async function loadItems() {
-  if (!adminClient || !curChannel) return;
-  const { data } = await adminClient
+  if (!curChannel) return;
+  const { data } = await db
     .from('slideshow_items').select('*')
     .eq('channel_id', curChannel.id).order('display_order');
   items = data || [];
@@ -538,19 +570,19 @@ function buildCard(item, index) {
 /* ── CRUD ── */
 async function saveOrder() {
   await Promise.all(items.map((it, i) =>
-    adminClient.from('slideshow_items').update({ display_order: i }).eq('id', it.id)
+    db.from('slideshow_items').update({ display_order: i }).eq('id', it.id)
   ));
   showStatus('順序已儲存');
 }
 
 async function updateCaption(id, caption) {
-  const { error } = await adminClient.from('slideshow_items')
+  const { error } = await db.from('slideshow_items')
     .update({ caption: caption.trim() || null }).eq('id', id);
   if (!error) showStatus('說明已儲存');
 }
 
 async function toggleActive(id, newState) {
-  const { error } = await adminClient.from('slideshow_items')
+  const { error } = await db.from('slideshow_items')
     .update({ active: newState }).eq('id', id);
   if (!error) {
     const it = items.find(i => i.id === id);
@@ -562,8 +594,8 @@ async function toggleActive(id, newState) {
 async function deleteItem(item) {
   if (!confirm('確定要刪除這個項目嗎？')) return;
   setLoading(true, '刪除中...');
-  await adminClient.storage.from('slideshow').remove([item.storage_path]);
-  const { error } = await adminClient.from('slideshow_items').delete().eq('id', item.id);
+  await db.storage.from('slideshow').remove([item.storage_path]);
+  const { error } = await db.from('slideshow_items').delete().eq('id', item.id);
   setLoading(false);
   if (error) { showStatus('刪除失敗：' + error.message, true); return; }
   items = items.filter(i => i.id !== item.id);
@@ -573,8 +605,7 @@ async function deleteItem(item) {
 
 /* ── Upload ── */
 async function handleFiles(files) {
-  if (!adminClient) { showStatus('請先連線', true); return; }
-  if (!curChannel)  { showStatus('請先選擇頻道', true); return; }
+  if (!curChannel) { showStatus('請先選擇頻道', true); return; }
   const list = [...files].filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
   if (list.length === 0) return;
 
@@ -586,13 +617,13 @@ async function handleFiles(files) {
     const isVideo  = file.type.startsWith('video/');
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-    const { error: upErr } = await adminClient.storage.from('slideshow')
+    const { error: upErr } = await db.storage.from('slideshow')
       .upload(filename, file, { contentType: file.type });
     if (upErr) { showStatus(`${file.name} 上傳失敗：${upErr.message}`, true); continue; }
 
-    const { data: { publicUrl } } = adminClient.storage.from('slideshow').getPublicUrl(filename);
+    const { data: { publicUrl } } = db.storage.from('slideshow').getPublicUrl(filename);
 
-    const { error: dbErr } = await adminClient.from('slideshow_items').insert({
+    const { error: dbErr } = await db.from('slideshow_items').insert({
       channel_id: curChannel.id,
       storage_path: filename,
       public_url: publicUrl,
@@ -628,9 +659,6 @@ document.getElementById('modal-bg').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-bg')) closeModal();
 });
 
-/* ── Auto-restore session ── */
-const savedKey = sessionStorage.getItem('sb_srk');
-if (savedKey) { document.getElementById('key-input').value = savedKey; connect(); }
 </script>
 </body>
 </html>
