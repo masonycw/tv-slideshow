@@ -148,12 +148,6 @@
     }
 
     .card-body  { padding:10px 12px 12px; }
-    .card-caption {
-      width:100%; border:1px solid #e0e0e0; border-radius:7px;
-      padding:6px 9px; font-size:13px; resize:none; outline:none;
-      font-family:inherit; line-height:1.4; transition:border-color .15s;
-    }
-    .card-caption:focus { border-color:#007aff; }
     .card-actions { display:flex; gap:7px; margin-top:8px; }
     .toggle-btn {
       flex:1; padding:5px 8px; border:1px solid #e0e0e0; border-radius:7px;
@@ -530,22 +524,12 @@ function buildCard(item, index) {
       ${item.file_type === 'video' ? '<span class="card-type-badge">影片</span>' : ''}
     </div>
     <div class="card-body">
-      <textarea class="card-caption" rows="2" placeholder="說明文字（選填）">${item.caption || ''}</textarea>
       <div class="card-actions">
         <button class="toggle-btn ${item.active ? 'on' : ''}">${item.active ? '顯示中' : '已隱藏'}</button>
         <button class="delete-btn">&#10005;</button>
       </div>
     </div>
   `;
-
-  // Caption auto-save
-  let capTimer = null;
-  const ta = card.querySelector('.card-caption');
-  ta.addEventListener('dragstart', e => e.stopPropagation());
-  ta.addEventListener('input', () => {
-    clearTimeout(capTimer);
-    capTimer = setTimeout(() => updateCaption(item.id, ta.value), 800);
-  });
 
   card.querySelector('.toggle-btn').addEventListener('click', () => toggleActive(item.id, !item.active));
   card.querySelector('.delete-btn').addEventListener('click', () => deleteItem(item));
@@ -582,12 +566,6 @@ async function saveOrder() {
     db.from('slideshow_items').update({ display_order: i }).eq('id', it.id)
   ));
   showStatus('順序已儲存');
-}
-
-async function updateCaption(id, caption) {
-  const { error } = await db.from('slideshow_items')
-    .update({ caption: caption.trim() || null }).eq('id', id);
-  if (!error) showStatus('說明已儲存');
 }
 
 async function toggleActive(id, newState) {

@@ -44,16 +44,6 @@
     }
 
 
-    /* Caption */
-    #caption {
-      position:absolute; bottom:0; left:0; right:0; z-index:10;
-      padding:80px 60px 40px;
-      background:linear-gradient(transparent, rgba(0,0,0,.75));
-      color:#fff; font-size:clamp(18px,2.4vw,44px); font-weight:300;
-      letter-spacing:.05em; line-height:1.5;
-      opacity:0; transition:opacity .6s ease; pointer-events:none;
-    }
-    #caption.show { opacity:1; }
 
 
     /* Empty */
@@ -76,7 +66,6 @@
 <div id="stage" style="display:none">
   <div class="slot" id="slot-a"></div>
   <div class="slot" id="slot-b"></div>
-  <div id="caption"></div>
   <div id="empty">
     <p>此頻道尚無內容</p>
     <small>請前往管理頁面上傳照片或影片</small>
@@ -100,7 +89,6 @@ let lastSlot   = -1;
 
 const slotA   = document.getElementById('slot-a');
 const slotB   = document.getElementById('slot-b');
-const capEl   = document.getElementById('caption');
 const emptyEl = document.getElementById('empty');
 
 const slot  = (n) => n === 'a' ? slotA : slotB;
@@ -161,14 +149,6 @@ async function showSlide(idx, effect) {
     buildVideoSlot(nxt, item, () => advance());
   } else {
     buildImageSlot(nxt, item);
-  }
-
-  // Caption
-  if (item.caption && item.caption.trim()) {
-    capEl.textContent = item.caption;
-    capEl.classList.add('show');
-  } else {
-    capEl.classList.remove('show');
   }
 
   // Apply transition
