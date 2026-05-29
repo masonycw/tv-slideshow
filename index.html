@@ -7,250 +7,423 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
   <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; user-select:none; }
+    html, body { width:100%; height:100%; background:#000; overflow:hidden; cursor:none;
+      font-family:'Noto Sans TC', system-ui, -apple-system, sans-serif; }
 
-    html, body {
-      width: 100%; height: 100%;
-      background: #000;
-      overflow: hidden;
-      cursor: none;
-      font-family: 'Noto Sans TC', system-ui, -apple-system, sans-serif;
+    /* ── Channel select screen ── */
+    #ch-select {
+      display:none; position:absolute; inset:0; flex-direction:column;
+      align-items:center; justify-content:center; gap:32px; z-index:20;
+    }
+    #ch-select.show { display:flex; }
+    #ch-select h1   { color:rgba(255,255,255,.6); font-size:28px; font-weight:300; letter-spacing:.1em; }
+    #ch-list        { display:flex; flex-wrap:wrap; gap:16px; justify-content:center; max-width:800px; }
+    .ch-card {
+      display:block; padding:20px 36px; background:rgba(255,255,255,.1);
+      border:1px solid rgba(255,255,255,.2); border-radius:12px; color:#fff;
+      font-size:22px; font-weight:300; text-decoration:none; letter-spacing:.05em;
+      transition:background .2s, border-color .2s;
+    }
+    .ch-card:hover { background:rgba(255,255,255,.2); border-color:rgba(255,255,255,.5); }
+    .ch-hint { color:rgba(255,255,255,.35); font-size:16px; }
+
+    /* ── Slideshow stage ── */
+    #stage { position:relative; width:100%; height:100%; overflow:hidden; }
+
+    .slot {
+      position:absolute; inset:0; opacity:0; z-index:0;
+      overflow:hidden; will-change:opacity, transform;
+    }
+    .slot-img {
+      position:absolute; inset:0;
+      background-size:cover; background-position:center; background-repeat:no-repeat;
+    }
+    .slot-vid {
+      position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
     }
 
-    #stage {
-      position: relative;
-      width: 100%; height: 100%;
-      overflow: hidden;
-    }
+    /* Ken Burns */
+    @keyframes kb1 { 0%{transform:scale(1.00) translate( 0%, 0%)} 100%{transform:scale(1.08) translate(-2%,-1%)} }
+    @keyframes kb2 { 0%{transform:scale(1.08) translate( 2%, 1%)} 100%{transform:scale(1.00) translate( 0%, 0%)} }
+    @keyframes kb3 { 0%{transform:scale(1.05) translate(-2%, 1%)} 100%{transform:scale(1.05) translate( 2%,-1%)} }
+    @keyframes kb4 { 0%{transform:scale(1.00) translate( 1%,-1%)} 100%{transform:scale(1.10) translate(-1%, 1%)} }
+    .kb1 { animation:kb1 var(--dur,8s) ease-in-out both; }
+    .kb2 { animation:kb2 var(--dur,8s) ease-in-out both; }
+    .kb3 { animation:kb3 var(--dur,8s) ease-in-out both; }
+    .kb4 { animation:kb4 var(--dur,8s) ease-in-out both; }
 
-    .slide {
-      position: absolute;
-      inset: 0;
-      background-size: cover;
-      background-position: center;
-      background-repeat: no-repeat;
-      opacity: 0;
-      z-index: 0;
-      will-change: opacity, transform;
-    }
-
-    /* Ken Burns 動畫 */
-    @keyframes kb1 { 0% { transform: scale(1.00) translate( 0%,  0%); } 100% { transform: scale(1.08) translate(-2%, -1%); } }
-    @keyframes kb2 { 0% { transform: scale(1.08) translate( 2%,  1%); } 100% { transform: scale(1.00) translate( 0%,  0%); } }
-    @keyframes kb3 { 0% { transform: scale(1.05) translate(-2%,  1%); } 100% { transform: scale(1.05) translate( 2%, -1%); } }
-    @keyframes kb4 { 0% { transform: scale(1.00) translate( 1%, -1%); } 100% { transform: scale(1.10) translate(-1%,  1%); } }
-
-    .kb1 { animation: kb1 var(--dur, 8s) ease-in-out both; }
-    .kb2 { animation: kb2 var(--dur, 8s) ease-in-out both; }
-    .kb3 { animation: kb3 var(--dur, 8s) ease-in-out both; }
-    .kb4 { animation: kb4 var(--dur, 8s) ease-in-out both; }
-
+    /* Caption */
     #caption {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      z-index: 10;
-      padding: 80px 60px 40px;
-      background: linear-gradient(transparent, rgba(0,0,0,0.75));
-      color: #fff;
-      font-size: clamp(18px, 2.4vw, 44px);
-      font-weight: 300;
-      letter-spacing: 0.05em;
-      line-height: 1.5;
-      opacity: 0;
-      transition: opacity 0.6s ease;
-      pointer-events: none;
+      position:absolute; bottom:0; left:0; right:0; z-index:10;
+      padding:80px 60px 40px;
+      background:linear-gradient(transparent, rgba(0,0,0,.75));
+      color:#fff; font-size:clamp(18px,2.4vw,44px); font-weight:300;
+      letter-spacing:.05em; line-height:1.5;
+      opacity:0; transition:opacity .6s ease; pointer-events:none;
     }
-    #caption.show { opacity: 1; }
+    #caption.show { opacity:1; }
 
-    #progress-bar {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      height: 3px;
-      background: rgba(255,255,255,0.15);
-      z-index: 11;
-    }
-    #progress-fill {
-      height: 100%;
-      width: 0;
-      background: rgba(255,255,255,0.7);
-    }
+    /* Progress bar */
+    #prog-bar  { position:absolute; bottom:0; left:0; right:0; height:3px; background:rgba(255,255,255,.15); z-index:11; }
+    #prog-fill { height:100%; width:0; background:rgba(255,255,255,.7); }
 
-    #empty {
-      display: none;
-      position: absolute;
-      inset: 0;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      color: rgba(255,255,255,0.35);
-      z-index: 5;
-    }
-    #empty.show { display: flex; }
-    #empty p       { font-size: 28px; font-weight: 300; }
-    #empty small   { font-size: 15px; opacity: 0.55; }
+    /* Empty */
+    #empty { display:none; position:absolute; inset:0; flex-direction:column; align-items:center;
+      justify-content:center; gap:12px; color:rgba(255,255,255,.35); z-index:5; }
+    #empty.show { display:flex; }
+    #empty p     { font-size:28px; font-weight:300; }
+    #empty small { font-size:15px; opacity:.55; }
   </style>
 </head>
 <body>
-  <div id="stage">
-    <div class="slide" id="sl-a"></div>
-    <div class="slide" id="sl-b"></div>
-    <div id="caption"></div>
-    <div id="progress-bar"><div id="progress-fill"></div></div>
-    <div id="empty">
-      <p>尚無輪播照片</p>
-      <small>請前往管理頁面上傳照片</small>
-    </div>
+
+<!-- Channel selector (shown when no ?ch= param) -->
+<div id="ch-select">
+  <h1>選擇頻道</h1>
+  <div id="ch-list"></div>
+</div>
+
+<!-- Slideshow stage -->
+<div id="stage" style="display:none">
+  <div class="slot" id="slot-a"></div>
+  <div class="slot" id="slot-b"></div>
+  <div id="caption"></div>
+  <div id="prog-bar"><div id="prog-fill"></div></div>
+  <div id="empty">
+    <p>此頻道尚無內容</p>
+    <small>請前往管理頁面上傳照片或影片</small>
   </div>
+</div>
 
-  <script>
-    const { createClient } = window.supabase;
-    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+<script>
+const { createClient } = window.supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    const EFFECTS  = ['fade', 'slide-left', 'slide-up', 'zoom', 'kb'];
-    const KB_NAMES = ['kb1', 'kb2', 'kb3', 'kb4'];
-    const TRANS_MS = 900;
+const EFFECTS  = ['fade','slide-left','slide-up','zoom','kb'];
+const KB_LIST  = ['kb1','kb2','kb3','kb4'];
+const TRANS_MS = 900;
 
-    let photos = [], idx = 0, active = 'a', timer = null;
+let channel = null; // { id, slug, interval_ms, sync_enabled }
+let items   = [];
+let curIdx  = 0;
+let activeSlot = 'a';
+let freeTimer  = null;
+let syncTimer  = null;
+let syncRaf    = null;
+let lastSlot   = -1;
 
-    const slA    = document.getElementById('sl-a');
-    const slB    = document.getElementById('sl-b');
-    const capEl  = document.getElementById('caption');
-    const emptyEl= document.getElementById('empty');
-    const fill   = document.getElementById('progress-fill');
+const slotA   = document.getElementById('slot-a');
+const slotB   = document.getElementById('slot-b');
+const capEl   = document.getElementById('caption');
+const emptyEl = document.getElementById('empty');
+const fill    = document.getElementById('prog-fill');
 
-    const sl      = (n) => n === 'a' ? slA : slB;
-    const other   = (n) => n === 'a' ? 'b' : 'a';
-    const pick    = (arr) => arr[Math.floor(Math.random() * arr.length)];
-    const preload = (url) => new Promise(r => { const i = new Image(); i.onload = i.onerror = r; i.src = url; });
+const slot  = (n) => n === 'a' ? slotA : slotB;
+const other = (n) => n === 'a' ? 'b' : 'a';
+const pick  = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-    function resetEl(el) {
-      el.removeAttribute('style');
-      el.className = 'slide';
+/* ── Preload ── */
+function preload(item) {
+  if (item.file_type === 'video') return Promise.resolve();
+  return new Promise(r => { const i = new Image(); i.onload = i.onerror = r; i.src = item.public_url; });
+}
+
+/* ── Progress bar ── */
+function stopProgress() {
+  clearInterval(freeTimer);
+  if (syncRaf) { cancelAnimationFrame(syncRaf); syncRaf = null; }
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+}
+
+function startSyncProgress() {
+  function frame() {
+    const pct = (Date.now() % channel.interval_ms) / channel.interval_ms * 100;
+    fill.style.width = pct + '%';
+    syncRaf = requestAnimationFrame(frame);
+  }
+  fill.style.transition = 'none';
+  syncRaf = requestAnimationFrame(frame);
+}
+
+function startFreeProgress(durationMs) {
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  void fill.offsetWidth;
+  fill.style.transition = `width ${durationMs}ms linear`;
+  fill.style.width = '100%';
+}
+
+/* ── Slot render ── */
+function buildImageSlot(el, item, durStr) {
+  const div = document.createElement('div');
+  div.className = 'slot-img';
+  div.style.backgroundImage = `url("${item.public_url}")`;
+  if (durStr) {
+    div.style.setProperty('--dur', durStr);
+    div.classList.add(pick(KB_LIST));
+  }
+  el.innerHTML = '';
+  el.appendChild(div);
+}
+
+function buildVideoSlot(el, item, onEnded) {
+  const vid = document.createElement('video');
+  vid.className = 'slot-vid';
+  vid.src = item.public_url;
+  vid.autoplay = true;
+  vid.muted = true;
+  vid.playsInline = true;
+  vid.loop = false;
+  vid.addEventListener('ended', onEnded);
+  vid.addEventListener('timeupdate', () => {
+    if (vid.duration) {
+      fill.style.width = (vid.currentTime / vid.duration * 100) + '%';
     }
+  });
+  el.innerHTML = '';
+  el.appendChild(vid);
+  vid.play().catch(() => {});
+}
 
-    function startProgress() {
-      fill.style.transition = 'none';
-      fill.style.width = '0%';
-      void fill.offsetWidth;
-      fill.style.transition = `width ${SLIDESHOW_INTERVAL}ms linear`;
-      fill.style.width = '100%';
+/* ── Transition ── */
+async function showSlide(idx, effect) {
+  if (items.length === 0) return;
+  const item  = items[idx];
+  const nName = other(activeSlot);
+  const cur   = slot(activeSlot);
+  const nxt   = slot(nName);
+
+  await preload(item);
+
+  // Setup next slot content
+  nxt.style.cssText = '';
+  nxt.className = 'slot';
+  nxt.style.zIndex = '2';
+
+  const isKb  = (effect === 'kb') && item.file_type === 'image';
+  const durStr = isKb ? channel.interval_ms + 'ms' : null;
+
+  if (item.file_type === 'video') {
+    fill.style.transition = 'none';
+    fill.style.width = '0%';
+    buildVideoSlot(nxt, item, () => advance());
+  } else {
+    buildImageSlot(nxt, item, isKb ? durStr : null);
+  }
+
+  // Caption
+  if (item.caption && item.caption.trim()) {
+    capEl.textContent = item.caption;
+    capEl.classList.add('show');
+  } else {
+    capEl.classList.remove('show');
+  }
+
+  // Apply transition
+  if (effect === 'kb' || effect === 'fade') {
+    nxt.style.opacity = '0';
+    nxt.style.transition = `opacity ${TRANS_MS}ms ease-in-out`;
+    void nxt.offsetWidth;
+    nxt.style.opacity = '1';
+    cur.style.transition = `opacity ${TRANS_MS}ms ease-in-out`;
+    cur.style.opacity = '0';
+
+  } else if (effect === 'slide-left') {
+    nxt.style.transform = 'translateX(100%)';
+    nxt.style.opacity = '1';
+    nxt.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1)`;
+    void nxt.offsetWidth;
+    nxt.style.transform = 'translateX(0)';
+    cur.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1), opacity ${TRANS_MS}ms ease`;
+    cur.style.transform = 'translateX(-20%)';
+    cur.style.opacity = '0';
+
+  } else if (effect === 'slide-up') {
+    nxt.style.transform = 'translateY(100%)';
+    nxt.style.opacity = '1';
+    nxt.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1)`;
+    void nxt.offsetWidth;
+    nxt.style.transform = 'translateY(0)';
+    cur.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1), opacity ${TRANS_MS}ms ease`;
+    cur.style.transform = 'translateY(-20%)';
+    cur.style.opacity = '0';
+
+  } else { // zoom
+    nxt.style.transform = 'scale(1.12)';
+    nxt.style.opacity = '0';
+    nxt.style.transition = `opacity ${TRANS_MS}ms ease-in-out, transform ${TRANS_MS}ms ease-out`;
+    void nxt.offsetWidth;
+    nxt.style.opacity = '1';
+    nxt.style.transform = 'scale(1)';
+    cur.style.transition = `opacity ${TRANS_MS}ms ease-in-out`;
+    cur.style.opacity = '0';
+  }
+
+  cur.style.zIndex = '1';
+  activeSlot = nName;
+  curIdx = idx;
+
+  setTimeout(() => {
+    cur.style.cssText = '';
+    cur.className = 'slot';
+    cur.innerHTML = '';
+  }, TRANS_MS + 100);
+}
+
+/* ── Advance ── */
+async function advance(forceIdx) {
+  if (items.length === 0) return;
+  stopProgress();
+
+  let idx;
+  if (channel.sync_enabled && items[curIdx].file_type !== 'video') {
+    // After video, jump to correct sync slot
+    idx = Math.floor(Date.now() / channel.interval_ms) % items.length;
+  } else if (typeof forceIdx === 'number') {
+    idx = forceIdx;
+  } else {
+    idx = (curIdx + 1) % items.length;
+  }
+
+  const effect = items[idx].file_type === 'video'
+    ? pick(['fade','slide-left','slide-up','zoom'])
+    : pick(EFFECTS);
+
+  await showSlide(idx, effect);
+
+  if (items[idx].file_type !== 'video') {
+    if (channel.sync_enabled) {
+      startSyncProgress();
+    } else {
+      startFreeProgress(channel.interval_ms);
     }
+  }
+}
 
-    async function show(photo, effect) {
-      const nextName = other(active);
-      const cur = sl(active);
-      const nxt = sl(nextName);
-
-      await preload(photo.public_url);
-
-      // 設定新圖層
-      resetEl(nxt);
-      nxt.style.backgroundImage = `url("${photo.public_url}")`;
-      nxt.style.zIndex = '2';
-
-      // Caption
-      if (photo.caption && photo.caption.trim()) {
-        capEl.textContent = photo.caption;
-        capEl.classList.add('show');
-      } else {
-        capEl.classList.remove('show');
-      }
-
-      // 套用切換效果
-      if (effect === 'kb' || effect === 'fade') {
-        nxt.style.setProperty('--dur', SLIDESHOW_INTERVAL + 'ms');
-        nxt.style.opacity = '0';
-        nxt.style.transition = `opacity ${TRANS_MS}ms ease-in-out`;
-        if (effect === 'kb') nxt.classList.add(pick(KB_NAMES));
-        void nxt.offsetWidth;
-        nxt.style.opacity = '1';
-
-        cur.style.transition = `opacity ${TRANS_MS}ms ease-in-out`;
-        cur.style.opacity = '0';
-
-      } else if (effect === 'slide-left') {
-        nxt.style.transform = 'translateX(100%)';
-        nxt.style.opacity = '1';
-        nxt.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1)`;
-        void nxt.offsetWidth;
-        nxt.style.transform = 'translateX(0)';
-
-        cur.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1), opacity ${TRANS_MS}ms ease`;
-        cur.style.transform = 'translateX(-20%)';
-        cur.style.opacity = '0';
-
-      } else if (effect === 'slide-up') {
-        nxt.style.transform = 'translateY(100%)';
-        nxt.style.opacity = '1';
-        nxt.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1)`;
-        void nxt.offsetWidth;
-        nxt.style.transform = 'translateY(0)';
-
-        cur.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1), opacity ${TRANS_MS}ms ease`;
-        cur.style.transform = 'translateY(-20%)';
-        cur.style.opacity = '0';
-
-      } else { // zoom
-        nxt.style.transform = 'scale(1.12)';
-        nxt.style.opacity = '0';
-        nxt.style.transition = `opacity ${TRANS_MS}ms ease-in-out, transform ${TRANS_MS}ms ease-out`;
-        void nxt.offsetWidth;
-        nxt.style.opacity = '1';
-        nxt.style.transform = 'scale(1)';
-
-        cur.style.transition = `opacity ${TRANS_MS}ms ease-in-out`;
-        cur.style.opacity = '0';
-      }
-
-      cur.style.zIndex = '1';
-      active = nextName;
-
-      setTimeout(() => {
-        resetEl(cur);
-      }, TRANS_MS + 100);
+/* ── Sync timer ── */
+function startSyncLoop() {
+  if (syncTimer) clearInterval(syncTimer);
+  lastSlot = Math.floor(Date.now() / channel.interval_ms);
+  syncTimer = setInterval(() => {
+    if (items.length === 0) return;
+    if (items[curIdx]?.file_type === 'video') return;  // let video finish
+    const s = Math.floor(Date.now() / channel.interval_ms);
+    if (s !== lastSlot) {
+      lastSlot = s;
+      const idx = s % items.length;
+      if (idx !== curIdx) advance(idx);
     }
+  }, 250);
+}
 
-    async function advance() {
-      if (photos.length === 0) return;
-      idx = (idx + 1) % photos.length;
-      if (photos.length > 1) preload(photos[(idx + 1) % photos.length].public_url);
-      await show(photos[idx], pick(EFFECTS));
-      startProgress();
-    }
+/* ── Free timer ── */
+function startFreeTimer() {
+  if (freeTimer) clearInterval(freeTimer);
+  freeTimer = setInterval(() => {
+    if (items[curIdx]?.file_type !== 'video') advance();
+  }, channel.interval_ms);
+}
 
-    async function start() {
-      if (photos.length === 0) { emptyEl.classList.add('show'); return; }
-      emptyEl.classList.remove('show');
-      idx = 0;
-      clearInterval(timer);
-      await show(photos[0], 'fade');
-      startProgress();
-      if (photos.length > 1) preload(photos[1].public_url);
-      timer = setInterval(advance, SLIDESHOW_INTERVAL);
-    }
+/* ── Start slideshow ── */
+async function startSlideshow() {
+  if (items.length === 0) { emptyEl.classList.add('show'); return; }
+  emptyEl.classList.remove('show');
 
-    async function fetchPhotos() {
-      const { data } = await db
-        .from('slideshow_items')
-        .select('id, public_url, caption')
-        .eq('active', true)
-        .order('display_order');
-      return data || [];
-    }
+  let idx = 0;
+  if (channel.sync_enabled) {
+    idx = Math.floor(Date.now() / channel.interval_ms) % items.length;
+  }
 
-    async function init() {
-      photos = await fetchPhotos();
-      await start();
+  stopProgress();
+  await showSlide(idx, 'fade');
 
-      setInterval(async () => {
-        const wasEmpty = photos.length === 0;
-        photos = await fetchPhotos();
-        if (wasEmpty && photos.length > 0) await start();
-      }, REFRESH_INTERVAL);
-    }
+  if (items[idx].file_type !== 'video') {
+    if (channel.sync_enabled) startSyncProgress();
+    else startFreeProgress(channel.interval_ms);
+  }
 
-    init();
-  </script>
+  if (channel.sync_enabled) startSyncLoop();
+  else startFreeTimer();
+
+  // Preload next
+  if (items.length > 1 && items[(idx+1) % items.length].file_type === 'image') {
+    preload(items[(idx+1) % items.length]);
+  }
+}
+
+/* ── Fetch ── */
+async function fetchItems(channelId) {
+  const { data } = await db
+    .from('slideshow_items')
+    .select('id, public_url, file_type, caption')
+    .eq('channel_id', channelId)
+    .eq('active', true)
+    .order('display_order');
+  return data || [];
+}
+
+async function fetchChannel(slug) {
+  const { data } = await db
+    .from('slideshow_channels')
+    .select('id, name, slug, interval_ms, sync_enabled')
+    .eq('slug', slug)
+    .single();
+  return data;
+}
+
+/* ── Channel select screen ── */
+async function showChannelSelect() {
+  const { data: channels } = await db
+    .from('slideshow_channels')
+    .select('name, slug')
+    .order('created_at');
+
+  document.getElementById('ch-select').classList.add('show');
+  const listEl = document.getElementById('ch-list');
+
+  if (!channels || channels.length === 0) {
+    listEl.innerHTML = '<p class="ch-hint">尚無頻道，請前往管理頁面建立</p>';
+    return;
+  }
+  channels.forEach(ch => {
+    const a = document.createElement('a');
+    a.className = 'ch-card';
+    a.href = `?ch=${ch.slug}`;
+    a.textContent = ch.name;
+    listEl.appendChild(a);
+  });
+}
+
+/* ── Init ── */
+async function init() {
+  const slug = new URLSearchParams(location.search).get('ch');
+  if (!slug) { await showChannelSelect(); return; }
+
+  channel = await fetchChannel(slug);
+  if (!channel) {
+    document.getElementById('ch-select').classList.add('show');
+    document.getElementById('ch-list').innerHTML =
+      `<p class="ch-hint">找不到頻道「${slug}」</p>`;
+    return;
+  }
+
+  document.title = channel.name + ' — 輪播展示';
+  document.getElementById('stage').style.display = '';
+
+  items = await fetchItems(channel.id);
+  await startSlideshow();
+
+  // Periodic refresh
+  setInterval(async () => {
+    const prev = items.length;
+    items = await fetchItems(channel.id);
+    if (prev === 0 && items.length > 0) startSlideshow();
+  }, REFRESH_INTERVAL);
+}
+
+init();
+</script>
 </body>
 </html>

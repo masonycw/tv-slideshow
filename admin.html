@@ -7,512 +7,630 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
   <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:system-ui,-apple-system,sans-serif; background:#f0f2f5; color:#333; min-height:100vh; }
 
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #f0f2f5;
-      color: #333;
-      min-height: 100vh;
-    }
-
-    /* Header */
+    /* ── Header ── */
     header {
-      background: #1c1c1e;
-      color: #fff;
-      padding: 14px 24px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      position: sticky;
-      top: 0;
-      z-index: 50;
-      box-shadow: 0 2px 8px rgba(0,0,0,.3);
+      background:#1c1c1e; color:#fff; padding:13px 20px;
+      display:flex; align-items:center; gap:10px;
+      position:sticky; top:0; z-index:50;
+      box-shadow:0 2px 8px rgba(0,0,0,.3);
     }
-
-    header h1 { font-size: 17px; font-weight: 600; flex: 1; letter-spacing: 0.02em; }
-
-    #key-form { display: flex; gap: 8px; align-items: center; }
-
+    header h1 { font-size:16px; font-weight:600; flex:1; }
+    #key-form  { display:flex; gap:8px; align-items:center; }
     #key-input {
-      padding: 7px 12px;
-      border: 1px solid rgba(255,255,255,.2);
-      border-radius: 7px;
-      font-size: 13px;
-      width: 280px;
-      background: rgba(255,255,255,.08);
-      color: #fff;
-      outline: none;
-      transition: border-color .2s;
+      padding:6px 11px; border:1px solid rgba(255,255,255,.2); border-radius:7px;
+      font-size:13px; width:260px; background:rgba(255,255,255,.08); color:#fff; outline:none;
     }
-    #key-input:focus { border-color: rgba(255,255,255,.5); }
-    #key-input::placeholder { color: rgba(255,255,255,.35); }
+    #key-input::placeholder { color:rgba(255,255,255,.35); }
 
     .btn {
-      padding: 7px 15px;
-      border: none;
-      border-radius: 7px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 500;
-      transition: opacity .15s;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
+      padding:6px 14px; border:none; border-radius:7px; cursor:pointer;
+      font-size:13px; font-weight:500; text-decoration:none; display:inline-flex;
+      align-items:center; gap:5px; transition:opacity .15s;
     }
-    .btn:hover { opacity: .8; }
-    .btn-primary { background: #34c759; color: #fff; }
-    .btn-ghost   { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.15); }
-    .btn-danger  { background: #ff3b30; color: #fff; }
+    .btn:hover { opacity:.8; }
+    .btn-green  { background:#34c759; color:#fff; }
+    .btn-blue   { background:#007aff; color:#fff; }
+    .btn-ghost  { background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.15); }
+    .btn-danger { background:#ff3b30; color:#fff; }
+    .btn-sm     { padding:4px 10px; font-size:12px; }
 
-    /* Status bar */
-    #status-bar {
-      display: none;
-      text-align: center;
-      padding: 8px;
-      font-size: 13px;
-      font-weight: 500;
+    /* ── Status ── */
+    #status {
+      display:none; text-align:center; padding:7px; font-size:13px; font-weight:500;
     }
-    #status-bar.show        { display: block; background: #e8f5e9; color: #2e7d32; }
-    #status-bar.show.error  { background: #fce4ec; color: #b71c1c; }
+    #status.show       { display:block; background:#e8f5e9; color:#2e7d32; }
+    #status.show.err   { background:#fce4ec; color:#b71c1c; }
 
-    /* Main layout */
-    #main { max-width: 1280px; margin: 0 auto; padding: 24px; }
+    /* ── Main ── */
+    #main { max-width:1300px; margin:0 auto; padding:20px; }
 
-    /* Upload zone */
+    /* ── Channel bar ── */
+    #ch-bar {
+      display:flex; align-items:center; gap:0; margin-bottom:16px;
+      background:#fff; border-radius:10px; padding:6px 8px;
+      box-shadow:0 1px 4px rgba(0,0,0,.08); flex-wrap:wrap; gap:6px;
+    }
+    .ch-tab {
+      display:flex; align-items:center; gap:6px;
+      padding:6px 14px; border-radius:7px; cursor:pointer;
+      font-size:14px; font-weight:500; color:#666; border:none; background:none;
+      transition:background .15s, color .15s;
+    }
+    .ch-tab.active { background:#007aff; color:#fff; }
+    .ch-tab:not(.active):hover { background:#f0f0f0; }
+    .ch-tab .del-ch { opacity:0; font-size:16px; line-height:1; margin-left:2px; }
+    .ch-tab:hover .del-ch { opacity:.5; }
+    .ch-tab .del-ch:hover { opacity:1; }
+    .ch-add { margin-left:auto; }
+
+    /* ── Channel settings ── */
+    #ch-settings {
+      background:#fff; border-radius:10px; padding:14px 18px;
+      margin-bottom:16px; box-shadow:0 1px 4px rgba(0,0,0,.08);
+      display:none; align-items:center; gap:18px; flex-wrap:wrap;
+    }
+    #ch-settings.show { display:flex; }
+    .setting-group { display:flex; align-items:center; gap:8px; }
+    .setting-group label { font-size:13px; color:#666; white-space:nowrap; }
+    .setting-group input[type=text], .setting-group input[type=number] {
+      padding:5px 9px; border:1px solid #ddd; border-radius:6px; font-size:13px;
+      outline:none; width:140px;
+    }
+    .setting-group input[type=text]:focus,
+    .setting-group input[type=number]:focus { border-color:#007aff; }
+    .toggle-wrap { display:flex; align-items:center; gap:8px; }
+    .toggle { position:relative; width:38px; height:22px; cursor:pointer; }
+    .toggle input { opacity:0; width:0; height:0; }
+    .toggle-track {
+      position:absolute; inset:0; background:#ccc; border-radius:11px;
+      transition:background .2s;
+    }
+    .toggle input:checked + .toggle-track { background:#34c759; }
+    .toggle-thumb {
+      position:absolute; top:3px; left:3px; width:16px; height:16px;
+      background:#fff; border-radius:50%; transition:left .2s;
+      box-shadow:0 1px 3px rgba(0,0,0,.3);
+    }
+    .toggle input:checked ~ .toggle-thumb { left:19px; }
+    .settings-save { margin-left:auto; }
+
+    /* ── Upload zone ── */
     #upload-zone {
-      background: #fff;
-      border: 2px dashed #ccc;
-      border-radius: 14px;
-      padding: 40px 24px;
-      text-align: center;
-      cursor: pointer;
-      margin-bottom: 24px;
-      transition: border-color .2s, background .2s;
+      background:#fff; border:2px dashed #ccc; border-radius:12px;
+      padding:32px; text-align:center; cursor:pointer; margin-bottom:20px;
+      transition:border-color .2s, background .2s;
     }
-    #upload-zone:hover, #upload-zone.dragover {
-      border-color: #007aff;
-      background: #f0f6ff;
-    }
-    #upload-zone .upload-icon { font-size: 40px; margin-bottom: 10px; }
-    #upload-zone p    { color: #555; font-size: 15px; margin-bottom: 6px; }
-    #upload-zone small { color: #999; font-size: 12px; }
-    #file-input { display: none; }
+    #upload-zone:hover, #upload-zone.dragover { border-color:#007aff; background:#f0f6ff; }
+    #upload-zone p     { color:#555; font-size:15px; margin-bottom:5px; }
+    #upload-zone small { color:#999; font-size:12px; }
+    #file-input { display:none; }
 
-    /* Section header */
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 14px;
-    }
-    .section-header h2 { font-size: 15px; font-weight: 600; color: #444; }
-    #photo-count { font-size: 13px; color: #999; }
+    /* ── Section header ── */
+    .sec-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .sec-hdr h2 { font-size:14px; font-weight:600; color:#555; }
 
-    /* Photo grid */
+    /* ── Photo grid ── */
     #photo-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-      gap: 16px;
+      display:grid; grid-template-columns:repeat(auto-fill, minmax(210px,1fr)); gap:16px;
     }
 
     .photo-card {
-      background: #fff;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 1px 4px rgba(0,0,0,.1);
-      transition: box-shadow .2s, opacity .2s, transform .1s;
-      cursor: grab;
+      background:#fff; border-radius:12px; overflow:hidden;
+      box-shadow:0 1px 4px rgba(0,0,0,.1); cursor:grab;
+      transition:box-shadow .2s, opacity .2s, transform .1s;
     }
-    .photo-card:active { cursor: grabbing; }
-    .photo-card.dragging  { opacity: .45; transform: scale(.97); }
-    .photo-card.drag-over { box-shadow: 0 0 0 2.5px #007aff; }
-    .photo-card.inactive  { opacity: .5; }
+    .photo-card:active         { cursor:grabbing; }
+    .photo-card.dragging       { opacity:.45; transform:scale(.97); }
+    .photo-card.drag-over      { box-shadow:0 0 0 2.5px #007aff; }
+    .photo-card.inactive       { opacity:.5; }
 
     .card-thumb {
-      height: 155px;
-      background-size: cover;
-      background-position: center;
-      background-color: #e5e5ea;
-      position: relative;
+      height:150px; background-size:cover; background-position:center;
+      background-color:#e5e5ea; position:relative;
+    }
+    .card-thumb video { width:100%; height:100%; object-fit:cover; }
+    .card-badge {
+      position:absolute; top:7px; left:7px;
+      background:rgba(0,0,0,.55); color:#fff;
+      font-size:11px; font-weight:600; padding:2px 7px; border-radius:5px;
+    }
+    .card-type-badge {
+      position:absolute; top:7px; right:7px;
+      background:rgba(0,122,255,.8); color:#fff;
+      font-size:10px; font-weight:600; padding:2px 6px; border-radius:5px;
     }
 
-    .card-order {
-      position: absolute;
-      top: 8px; left: 8px;
-      background: rgba(0,0,0,.55);
-      color: #fff;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 2px 7px;
-      border-radius: 5px;
-    }
-
-    .card-body { padding: 10px 12px 12px; }
-
+    .card-body  { padding:10px 12px 12px; }
     .card-caption {
-      width: 100%;
-      border: 1px solid #e0e0e0;
-      border-radius: 7px;
-      padding: 6px 9px;
-      font-size: 13px;
-      resize: none;
-      outline: none;
-      font-family: inherit;
-      color: #333;
-      line-height: 1.4;
-      transition: border-color .15s;
+      width:100%; border:1px solid #e0e0e0; border-radius:7px;
+      padding:6px 9px; font-size:13px; resize:none; outline:none;
+      font-family:inherit; line-height:1.4; transition:border-color .15s;
     }
-    .card-caption:focus { border-color: #007aff; }
-
-    .card-actions {
-      display: flex;
-      gap: 7px;
-      margin-top: 8px;
-    }
-
+    .card-caption:focus { border-color:#007aff; }
+    .card-actions { display:flex; gap:7px; margin-top:8px; }
     .toggle-btn {
-      flex: 1;
-      padding: 6px 8px;
-      border: 1px solid #e0e0e0;
-      border-radius: 7px;
-      background: #f5f5f7;
-      color: #666;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 500;
-      transition: background .15s, color .15s, border-color .15s;
+      flex:1; padding:5px 8px; border:1px solid #e0e0e0; border-radius:7px;
+      background:#f5f5f7; color:#666; cursor:pointer; font-size:12px; font-weight:500;
+      transition:background .15s, color .15s, border-color .15s;
     }
-    .toggle-btn.on {
-      background: #e8f5e9;
-      border-color: #81c784;
-      color: #2e7d32;
-    }
-
+    .toggle-btn.on { background:#e8f5e9; border-color:#81c784; color:#2e7d32; }
     .delete-btn {
-      padding: 6px 10px;
-      border: 1px solid #ffcdd2;
-      border-radius: 7px;
-      background: #fff8f8;
-      color: #c62828;
-      cursor: pointer;
-      font-size: 13px;
-      transition: background .15s;
+      padding:5px 10px; border:1px solid #ffcdd2; border-radius:7px;
+      background:#fff8f8; color:#c62828; cursor:pointer; font-size:13px;
+      transition:background .15s;
     }
-    .delete-btn:hover { background: #ffcdd2; }
+    .delete-btn:hover { background:#ffcdd2; }
 
-    /* Empty / hint */
-    #empty-hint {
-      grid-column: 1 / -1;
-      text-align: center;
-      padding: 60px 0;
-      color: #aaa;
-      font-size: 15px;
+    /* ── Empty / loading ── */
+    .grid-empty {
+      grid-column:1/-1; text-align:center; padding:50px; color:#aaa; font-size:15px;
     }
-
-    /* Loading overlay */
     #loading-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(255,255,255,.65);
-      backdrop-filter: blur(4px);
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-      font-size: 17px;
-      color: #444;
-      gap: 12px;
+      display:none; position:fixed; inset:0; background:rgba(255,255,255,.65);
+      backdrop-filter:blur(4px); align-items:center; justify-content:center;
+      z-index:200; font-size:16px; color:#444; gap:12px;
     }
-    #loading-overlay.show { display: flex; }
-
+    #loading-overlay.show { display:flex; }
     .spinner {
-      width: 24px; height: 24px;
-      border: 3px solid #ddd;
-      border-top-color: #007aff;
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
+      width:22px; height:22px; border:3px solid #ddd;
+      border-top-color:#007aff; border-radius:50%;
+      animation:spin .7s linear infinite;
     }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ── New channel modal ── */
+    #modal-bg {
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100;
+      align-items:center; justify-content:center;
+    }
+    #modal-bg.show { display:flex; }
+    #modal {
+      background:#fff; border-radius:14px; padding:28px 28px 24px; width:340px;
+      box-shadow:0 8px 32px rgba(0,0,0,.2);
+    }
+    #modal h3 { font-size:17px; margin-bottom:18px; }
+    .modal-field { margin-bottom:14px; }
+    .modal-field label { display:block; font-size:13px; color:#555; margin-bottom:5px; }
+    .modal-field input {
+      width:100%; padding:8px 10px; border:1px solid #ddd; border-radius:7px;
+      font-size:14px; outline:none;
+    }
+    .modal-field input:focus { border-color:#007aff; }
+    .modal-hint { font-size:11px; color:#999; margin-top:4px; }
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:4px; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>輪播管理</h1>
-    <div id="key-form">
-      <input type="password" id="key-input" placeholder="Supabase Service Role Key">
-      <button class="btn btn-primary" id="connect-btn">連線</button>
-      <a class="btn btn-ghost" href="index.html" target="_blank">開啟展示頁</a>
-    </div>
-  </header>
 
-  <div id="status-bar"></div>
+<header>
+  <h1>輪播管理</h1>
+  <div id="key-form">
+    <input type="password" id="key-input" placeholder="Supabase Service Role Key">
+    <button class="btn btn-green" id="connect-btn">連線</button>
+    <a class="btn btn-ghost" id="preview-link" href="index.html" target="_blank">預覽展示頁</a>
+  </div>
+</header>
 
-  <div id="main">
-    <div id="upload-zone">
-      <input type="file" id="file-input" multiple accept="image/*">
-      <div class="upload-icon">+</div>
-      <p>點擊或拖曳照片到此處上傳</p>
-      <small>支援 JPG、PNG、WebP、GIF，單檔最大 50 MB</small>
-    </div>
+<div id="status"></div>
 
-    <div class="section-header">
-      <h2>目前輪播照片</h2>
-      <span id="photo-count"></span>
-    </div>
-
-    <div id="photo-grid">
-      <div id="empty-hint">請輸入 Service Role Key 後點擊連線</div>
-    </div>
+<div id="main">
+  <!-- Channel bar -->
+  <div id="ch-bar">
+    <span style="font-size:13px;color:#999;padding:0 4px">尚未連線</span>
+    <button class="btn btn-blue btn-sm ch-add" onclick="openModal()">+ 新增頻道</button>
   </div>
 
-  <div id="loading-overlay">
-    <div class="spinner"></div>
-    <span id="loading-msg">處理中...</span>
+  <!-- Channel settings -->
+  <div id="ch-settings">
+    <div class="setting-group">
+      <label>名稱</label>
+      <input type="text" id="ch-name" placeholder="TV 左側">
+    </div>
+    <div class="setting-group">
+      <label>Slug</label>
+      <input type="text" id="ch-slug" placeholder="tv-left" readonly style="color:#999;cursor:default">
+    </div>
+    <div class="setting-group">
+      <label>每張停留</label>
+      <input type="number" id="ch-interval" min="2" max="120" step="1" style="width:80px">
+      <span style="font-size:13px;color:#666">秒</span>
+    </div>
+    <div class="setting-group">
+      <label>時間同步</label>
+      <div class="toggle-wrap">
+        <label class="toggle">
+          <input type="checkbox" id="ch-sync">
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+        <span id="sync-label" style="font-size:12px;color:#999">關</span>
+      </div>
+    </div>
+    <button class="btn btn-blue btn-sm settings-save" onclick="saveChannelSettings()">儲存設定</button>
+    <button class="btn btn-danger btn-sm" onclick="deleteChannel()">刪除頻道</button>
   </div>
 
-  <script>
-    const { createClient } = window.supabase;
-    let adminClient = null;
-    let items = [];
-    let dragSrc = null;
+  <!-- Upload zone -->
+  <div id="upload-zone">
+    <input type="file" id="file-input" multiple accept="image/*,video/*">
+    <p>點擊或拖曳照片 / 影片到此處上傳</p>
+    <small>JPG、PNG、WebP、GIF、MP4、WebM｜圖片最大 50MB、影片最大 200MB</small>
+  </div>
 
-    /* ── UI helpers ── */
-    function showStatus(msg, isError = false) {
-      const bar = document.getElementById('status-bar');
-      bar.textContent = msg;
-      bar.className = 'show' + (isError ? ' error' : '');
-      clearTimeout(bar._t);
-      bar._t = setTimeout(() => bar.classList.remove('show'), 3000);
-    }
+  <!-- Items grid -->
+  <div class="sec-hdr">
+    <h2>播放清單</h2>
+    <span id="item-count" style="font-size:13px;color:#999"></span>
+  </div>
+  <div id="photo-grid">
+    <div class="grid-empty">請輸入 Service Role Key 後點擊連線</div>
+  </div>
+</div>
 
-    function setLoading(on, msg = '處理中...') {
-      document.getElementById('loading-msg').textContent = msg;
-      document.getElementById('loading-overlay').classList.toggle('show', on);
-    }
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <span id="loading-msg">處理中...</span>
+</div>
 
-    /* ── Connect ── */
-    async function connect() {
-      const key = document.getElementById('key-input').value.trim();
-      if (!key) { showStatus('請輸入 Service Role Key', true); return; }
+<!-- New channel modal -->
+<div id="modal-bg">
+  <div id="modal">
+    <h3>新增頻道</h3>
+    <div class="modal-field">
+      <label>頻道名稱</label>
+      <input type="text" id="new-ch-name" placeholder="TV 左側">
+    </div>
+    <div class="modal-field">
+      <label>Slug（網址識別碼）</label>
+      <input type="text" id="new-ch-slug" placeholder="tv-left">
+      <p class="modal-hint">只能用小寫英文、數字、連字號，例如：tv-left、screen-1</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()" style="color:#333;border-color:#ddd;background:#f5f5f5">取消</button>
+      <button class="btn btn-blue" onclick="createChannel()">建立</button>
+    </div>
+  </div>
+</div>
 
-      const client = createClient(SUPABASE_URL, key, {
-        auth: { autoRefreshToken: false, persistSession: false }
+<script>
+const { createClient } = window.supabase;
+let adminClient = null;
+let channels    = [];
+let curChannel  = null;
+let items       = [];
+let dragSrc     = null;
+
+/* ── UI helpers ── */
+function showStatus(msg, isErr = false) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' err' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3000);
+}
+function setLoading(on, msg = '處理中...') {
+  document.getElementById('loading-msg').textContent = msg;
+  document.getElementById('loading-overlay').classList.toggle('show', on);
+}
+
+/* ── Connect ── */
+async function connect() {
+  const key = document.getElementById('key-input').value.trim();
+  if (!key) { showStatus('請輸入 Service Role Key', true); return; }
+  const client = createClient(SUPABASE_URL, key, { auth:{ autoRefreshToken:false, persistSession:false } });
+  const { error } = await client.from('slideshow_channels').select('id').limit(1);
+  if (error) { showStatus('連線失敗：' + error.message, true); return; }
+  adminClient = client;
+  sessionStorage.setItem('sb_srk', key);
+  showStatus('連線成功');
+  await loadChannels();
+}
+document.getElementById('connect-btn').addEventListener('click', connect);
+document.getElementById('key-input').addEventListener('keydown', e => { if (e.key === 'Enter') connect(); });
+
+/* ── Channels ── */
+async function loadChannels() {
+  const { data } = await adminClient.from('slideshow_channels').select('*').order('created_at');
+  channels = data || [];
+  renderChannelBar();
+  if (channels.length > 0) selectChannel(channels[0]);
+}
+
+function renderChannelBar() {
+  const bar = document.getElementById('ch-bar');
+  bar.innerHTML = '';
+
+  if (channels.length === 0) {
+    bar.innerHTML = '<span style="font-size:13px;color:#999;padding:0 4px">尚無頻道</span>';
+  } else {
+    channels.forEach(ch => {
+      const btn = document.createElement('button');
+      btn.className = 'ch-tab' + (curChannel?.id === ch.id ? ' active' : '');
+      btn.innerHTML = `${ch.name}<span class="del-ch" data-id="${ch.id}" title="刪除此頻道">×</span>`;
+      btn.querySelector('.del-ch').addEventListener('click', e => {
+        e.stopPropagation();
+        if (confirm(`確定要刪除頻道「${ch.name}」及其所有內容嗎？`)) deleteChannelById(ch.id);
       });
-
-      const { error } = await client.from('slideshow_items').select('id').limit(1);
-      if (error) { showStatus('連線失敗：' + error.message, true); return; }
-
-      adminClient = client;
-      sessionStorage.setItem('sb_srk', key);
-      showStatus('連線成功');
-      await loadItems();
-    }
-
-    document.getElementById('connect-btn').addEventListener('click', connect);
-    document.getElementById('key-input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') connect();
+      btn.addEventListener('click', () => selectChannel(ch));
+      bar.appendChild(btn);
     });
+  }
 
-    /* ── Load & render ── */
-    async function loadItems() {
-      if (!adminClient) return;
-      const { data, error } = await adminClient
-        .from('slideshow_items')
-        .select('*')
-        .order('display_order');
-      if (error) { showStatus('載入失敗：' + error.message, true); return; }
-      items = data || [];
-      renderGrid();
-    }
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn btn-blue btn-sm ch-add';
+  addBtn.textContent = '+ 新增頻道';
+  addBtn.addEventListener('click', openModal);
+  bar.appendChild(addBtn);
+}
 
-    function renderGrid() {
-      const grid = document.getElementById('photo-grid');
-      const countEl = document.getElementById('photo-count');
-      countEl.textContent = items.length ? `共 ${items.length} 張` : '';
+async function selectChannel(ch) {
+  curChannel = ch;
 
-      grid.innerHTML = '';
-      if (items.length === 0) {
-        grid.innerHTML = '<div id="empty-hint">尚無照片，請上傳</div>';
-        return;
-      }
+  // Update preview link
+  document.getElementById('preview-link').href = `index.html?ch=${ch.slug}`;
 
-      items.forEach((item, i) => grid.appendChild(buildCard(item, i)));
-    }
+  // Fill settings panel
+  document.getElementById('ch-name').value     = ch.name;
+  document.getElementById('ch-slug').value     = ch.slug;
+  document.getElementById('ch-interval').value = Math.round(ch.interval_ms / 1000);
+  const syncInput = document.getElementById('ch-sync');
+  syncInput.checked = ch.sync_enabled;
+  document.getElementById('sync-label').textContent = ch.sync_enabled ? '開' : '關';
 
-    function buildCard(item, index) {
-      const card = document.createElement('div');
-      card.className = 'photo-card' + (item.active ? '' : ' inactive');
-      card.dataset.id = item.id;
-      card.draggable = true;
+  document.getElementById('ch-settings').classList.add('show');
+  renderChannelBar();
+  await loadItems();
+}
 
-      card.innerHTML = `
-        <div class="card-thumb" style="background-image:url('${item.public_url}')">
-          <span class="card-order">#${index + 1}</span>
-        </div>
-        <div class="card-body">
-          <textarea class="card-caption" rows="2" placeholder="說明文字（選填）">${item.caption || ''}</textarea>
-          <div class="card-actions">
-            <button class="toggle-btn ${item.active ? 'on' : ''}">${item.active ? '顯示中' : '已隱藏'}</button>
-            <button class="delete-btn">&#128465;</button>
-          </div>
-        </div>
-      `;
+async function saveChannelSettings() {
+  if (!curChannel) return;
+  const name     = document.getElementById('ch-name').value.trim();
+  const interval = parseInt(document.getElementById('ch-interval').value, 10) * 1000;
+  const sync     = document.getElementById('ch-sync').checked;
+  if (!name) { showStatus('請輸入頻道名稱', true); return; }
+  if (isNaN(interval) || interval < 2000) { showStatus('停留秒數最少 2 秒', true); return; }
 
-      /* Caption auto-save */
-      let captionTimer = null;
-      const textarea = card.querySelector('.card-caption');
-      textarea.addEventListener('dragstart', (e) => e.stopPropagation());
-      textarea.addEventListener('input', () => {
-        clearTimeout(captionTimer);
-        captionTimer = setTimeout(() => updateCaption(item.id, textarea.value), 800);
-      });
+  const { error } = await adminClient.from('slideshow_channels')
+    .update({ name, interval_ms: interval, sync_enabled: sync })
+    .eq('id', curChannel.id);
+  if (error) { showStatus('儲存失敗：' + error.message, true); return; }
 
-      /* Toggle active */
-      card.querySelector('.toggle-btn').addEventListener('click', () => toggleActive(item.id, !item.active));
+  curChannel = { ...curChannel, name, interval_ms: interval, sync_enabled: sync };
+  channels   = channels.map(c => c.id === curChannel.id ? curChannel : c);
+  document.getElementById('sync-label').textContent = sync ? '開' : '關';
+  renderChannelBar();
+  showStatus('頻道設定已儲存');
+}
 
-      /* Delete */
-      card.querySelector('.delete-btn').addEventListener('click', () => deleteItem(item));
+document.getElementById('ch-sync').addEventListener('change', function() {
+  document.getElementById('sync-label').textContent = this.checked ? '開' : '關';
+});
 
-      /* Drag-to-reorder */
-      card.addEventListener('dragstart', (e) => {
-        dragSrc = card;
-        card.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-      });
-      card.addEventListener('dragend', () => {
-        card.classList.remove('dragging');
-        document.querySelectorAll('.photo-card').forEach(c => c.classList.remove('drag-over'));
-      });
-      card.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        if (dragSrc !== card) card.classList.add('drag-over');
-      });
-      card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
-      card.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        if (!dragSrc || dragSrc === card) return;
+async function deleteChannelById(id) {
+  setLoading(true, '刪除頻道...');
+  const { error } = await adminClient.from('slideshow_channels').delete().eq('id', id);
+  setLoading(false);
+  if (error) { showStatus('刪除失敗：' + error.message, true); return; }
+  channels = channels.filter(c => c.id !== id);
+  if (curChannel?.id === id) {
+    curChannel = null;
+    document.getElementById('ch-settings').classList.remove('show');
+    document.getElementById('photo-grid').innerHTML = '<div class="grid-empty">請選擇頻道</div>';
+  }
+  renderChannelBar();
+  showStatus('頻道已刪除');
+}
 
-        const grid = document.getElementById('photo-grid');
-        const cards = [...grid.querySelectorAll('.photo-card')];
-        const srcIdx = cards.indexOf(dragSrc);
-        const dstIdx = cards.indexOf(card);
+/* ── New channel modal ── */
+function openModal()  { document.getElementById('modal-bg').classList.add('show'); document.getElementById('new-ch-name').focus(); }
+function closeModal() { document.getElementById('modal-bg').classList.remove('show'); }
 
-        const [moved] = items.splice(srcIdx, 1);
-        items.splice(dstIdx, 0, moved);
-        renderGrid();
-        await saveOrder();
-      });
+// Auto-generate slug from name
+document.getElementById('new-ch-name').addEventListener('input', function() {
+  const slug = this.value.toLowerCase()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .slice(0, 40);
+  document.getElementById('new-ch-slug').value = slug;
+});
 
-      return card;
-    }
+async function createChannel() {
+  const name = document.getElementById('new-ch-name').value.trim();
+  const slug = document.getElementById('new-ch-slug').value.trim();
+  if (!name) { showStatus('請輸入名稱', true); return; }
+  if (!slug || !/^[a-z0-9-]+$/.test(slug)) { showStatus('Slug 只能用小寫英文、數字、連字號', true); return; }
 
-    /* ── CRUD helpers ── */
-    async function saveOrder() {
-      await Promise.all(
-        items.map((item, i) =>
-          adminClient.from('slideshow_items').update({ display_order: i }).eq('id', item.id)
-        )
-      );
-      showStatus('順序已儲存');
-    }
+  const { data, error } = await adminClient.from('slideshow_channels')
+    .insert({ name, slug, interval_ms: 8000, sync_enabled: true })
+    .select().single();
+  if (error) { showStatus('建立失敗：' + error.message, true); return; }
 
-    async function updateCaption(id, caption) {
-      const { error } = await adminClient
-        .from('slideshow_items')
-        .update({ caption: caption.trim() || null })
-        .eq('id', id);
-      if (!error) showStatus('說明已儲存');
-    }
+  channels.push(data);
+  closeModal();
+  document.getElementById('new-ch-name').value = '';
+  document.getElementById('new-ch-slug').value = '';
+  selectChannel(data);
+  showStatus(`頻道「${name}」已建立`);
+}
 
-    async function toggleActive(id, newState) {
-      const { error } = await adminClient
-        .from('slideshow_items')
-        .update({ active: newState })
-        .eq('id', id);
-      if (!error) {
-        const item = items.find(i => i.id === id);
-        if (item) item.active = newState;
-        renderGrid();
-      }
-    }
+/* ── Items ── */
+async function loadItems() {
+  if (!adminClient || !curChannel) return;
+  const { data } = await adminClient
+    .from('slideshow_items').select('*')
+    .eq('channel_id', curChannel.id).order('display_order');
+  items = data || [];
+  renderGrid();
+}
 
-    async function deleteItem(item) {
-      if (!confirm('確定要刪除這張照片嗎？')) return;
-      setLoading(true, '刪除中...');
+function renderGrid() {
+  const grid    = document.getElementById('photo-grid');
+  const countEl = document.getElementById('item-count');
+  countEl.textContent = items.length ? `共 ${items.length} 個` : '';
+  grid.innerHTML = '';
+  if (items.length === 0) {
+    grid.innerHTML = '<div class="grid-empty">尚無內容，請上傳</div>';
+    return;
+  }
+  items.forEach((item, i) => grid.appendChild(buildCard(item, i)));
+}
 
-      await adminClient.storage.from('slideshow').remove([item.storage_path]);
-      const { error } = await adminClient.from('slideshow_items').delete().eq('id', item.id);
+function buildCard(item, index) {
+  const card = document.createElement('div');
+  card.className = 'photo-card' + (item.active ? '' : ' inactive');
+  card.dataset.id = item.id;
+  card.draggable = true;
 
-      setLoading(false);
-      if (error) { showStatus('刪除失敗：' + error.message, true); return; }
+  const thumbHtml = item.file_type === 'video'
+    ? `<video src="${item.public_url}" muted preload="metadata" style="width:100%;height:100%;object-fit:cover"></video>`
+    : ``;
+  const thumbStyle = item.file_type === 'image' ? `style="background-image:url('${item.public_url}')"` : '';
 
-      items = items.filter(i => i.id !== item.id);
-      renderGrid();
-      showStatus('已刪除');
-    }
+  card.innerHTML = `
+    <div class="card-thumb" ${thumbStyle}>
+      ${thumbHtml}
+      <span class="card-badge">#${index + 1}</span>
+      ${item.file_type === 'video' ? '<span class="card-type-badge">影片</span>' : ''}
+    </div>
+    <div class="card-body">
+      <textarea class="card-caption" rows="2" placeholder="說明文字（選填）">${item.caption || ''}</textarea>
+      <div class="card-actions">
+        <button class="toggle-btn ${item.active ? 'on' : ''}">${item.active ? '顯示中' : '已隱藏'}</button>
+        <button class="delete-btn">&#10005;</button>
+      </div>
+    </div>
+  `;
 
-    /* ── Upload ── */
-    async function handleFiles(files) {
-      if (!adminClient) { showStatus('請先連線', true); return; }
-      const images = [...files].filter(f => f.type.startsWith('image/'));
-      if (images.length === 0) return;
+  // Caption auto-save
+  let capTimer = null;
+  const ta = card.querySelector('.card-caption');
+  ta.addEventListener('dragstart', e => e.stopPropagation());
+  ta.addEventListener('input', () => {
+    clearTimeout(capTimer);
+    capTimer = setTimeout(() => updateCaption(item.id, ta.value), 800);
+  });
 
-      let done = 0;
-      setLoading(true, `上傳中 0 / ${images.length}…`);
+  card.querySelector('.toggle-btn').addEventListener('click', () => toggleActive(item.id, !item.active));
+  card.querySelector('.delete-btn').addEventListener('click', () => deleteItem(item));
 
-      for (const file of images) {
-        const ext = file.name.split('.').pop().toLowerCase();
-        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  // Drag-to-reorder
+  card.addEventListener('dragstart', e => { dragSrc = card; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+  card.addEventListener('dragend',   () => { card.classList.remove('dragging'); document.querySelectorAll('.photo-card').forEach(c => c.classList.remove('drag-over')); });
+  card.addEventListener('dragover',  e => { e.preventDefault(); if (dragSrc !== card) card.classList.add('drag-over'); });
+  card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+  card.addEventListener('drop', async e => {
+    e.preventDefault();
+    if (!dragSrc || dragSrc === card) return;
+    const cards = [...document.getElementById('photo-grid').querySelectorAll('.photo-card')];
+    const [moved] = items.splice(cards.indexOf(dragSrc), 1);
+    items.splice(cards.indexOf(card), 0, moved);
+    renderGrid();
+    await saveOrder();
+  });
 
-        const { error: upErr } = await adminClient.storage
-          .from('slideshow')
-          .upload(filename, file, { contentType: file.type });
+  return card;
+}
 
-        if (upErr) { showStatus(`${file.name} 上傳失敗：${upErr.message}`, true); continue; }
+/* ── CRUD ── */
+async function saveOrder() {
+  await Promise.all(items.map((it, i) =>
+    adminClient.from('slideshow_items').update({ display_order: i }).eq('id', it.id)
+  ));
+  showStatus('順序已儲存');
+}
 
-        const { data: { publicUrl } } = adminClient.storage.from('slideshow').getPublicUrl(filename);
+async function updateCaption(id, caption) {
+  const { error } = await adminClient.from('slideshow_items')
+    .update({ caption: caption.trim() || null }).eq('id', id);
+  if (!error) showStatus('說明已儲存');
+}
 
-        const { error: dbErr } = await adminClient.from('slideshow_items').insert({
-          storage_path: filename,
-          public_url: publicUrl,
-          caption: null,
-          display_order: items.length + done,
-          active: true
-        });
+async function toggleActive(id, newState) {
+  const { error } = await adminClient.from('slideshow_items')
+    .update({ active: newState }).eq('id', id);
+  if (!error) {
+    const it = items.find(i => i.id === id);
+    if (it) it.active = newState;
+    renderGrid();
+  }
+}
 
-        if (dbErr) { showStatus(`${file.name} 寫入失敗：${dbErr.message}`, true); continue; }
-        done++;
-        document.getElementById('loading-msg').textContent = `上傳中 ${done} / ${images.length}…`;
-      }
+async function deleteItem(item) {
+  if (!confirm('確定要刪除這個項目嗎？')) return;
+  setLoading(true, '刪除中...');
+  await adminClient.storage.from('slideshow').remove([item.storage_path]);
+  const { error } = await adminClient.from('slideshow_items').delete().eq('id', item.id);
+  setLoading(false);
+  if (error) { showStatus('刪除失敗：' + error.message, true); return; }
+  items = items.filter(i => i.id !== item.id);
+  renderGrid();
+  showStatus('已刪除');
+}
 
-      setLoading(false);
-      showStatus(`成功上傳 ${done} 張照片`);
-      document.getElementById('file-input').value = '';
-      await loadItems();
-    }
+/* ── Upload ── */
+async function handleFiles(files) {
+  if (!adminClient) { showStatus('請先連線', true); return; }
+  if (!curChannel)  { showStatus('請先選擇頻道', true); return; }
+  const list = [...files].filter(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+  if (list.length === 0) return;
 
-    document.getElementById('file-input').addEventListener('change', (e) => handleFiles(e.target.files));
-    document.getElementById('upload-zone').addEventListener('click', () => {
-      document.getElementById('file-input').click();
+  let done = 0;
+  setLoading(true, `上傳中 0 / ${list.length}…`);
+
+  for (const file of list) {
+    const ext      = file.name.split('.').pop().toLowerCase();
+    const isVideo  = file.type.startsWith('video/');
+    const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { error: upErr } = await adminClient.storage.from('slideshow')
+      .upload(filename, file, { contentType: file.type });
+    if (upErr) { showStatus(`${file.name} 上傳失敗：${upErr.message}`, true); continue; }
+
+    const { data: { publicUrl } } = adminClient.storage.from('slideshow').getPublicUrl(filename);
+
+    const { error: dbErr } = await adminClient.from('slideshow_items').insert({
+      channel_id: curChannel.id,
+      storage_path: filename,
+      public_url: publicUrl,
+      file_type: isVideo ? 'video' : 'image',
+      caption: null,
+      display_order: items.length + done,
+      active: true
     });
+    if (dbErr) { showStatus(`${file.name} 寫入失敗：${dbErr.message}`, true); continue; }
+    done++;
+    document.getElementById('loading-msg').textContent = `上傳中 ${done} / ${list.length}…`;
+  }
 
-    const zone = document.getElementById('upload-zone');
-    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-    zone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      zone.classList.remove('dragover');
-      if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
-    });
+  setLoading(false);
+  showStatus(`成功上傳 ${done} 個檔案`);
+  document.getElementById('file-input').value = '';
+  await loadItems();
+}
 
-    /* ── Auto-restore session key ── */
-    const savedKey = sessionStorage.getItem('sb_srk');
-    if (savedKey) {
-      document.getElementById('key-input').value = savedKey;
-      connect();
-    }
-  </script>
+document.getElementById('file-input').addEventListener('change', e => handleFiles(e.target.files));
+document.getElementById('upload-zone').addEventListener('click', () => document.getElementById('file-input').click());
+
+const zone = document.getElementById('upload-zone');
+zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+});
+
+// Close modal on outside click
+document.getElementById('modal-bg').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-bg')) closeModal();
+});
+
+/* ── Auto-restore session ── */
+const savedKey = sessionStorage.getItem('sb_srk');
+if (savedKey) { document.getElementById('key-input').value = savedKey; connect(); }
+</script>
 </body>
 </html>
