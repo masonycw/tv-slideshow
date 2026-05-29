@@ -259,6 +259,7 @@
       </div>
     </div>
 <button class="btn btn-blue btn-sm settings-save" onclick="saveChannelSettings()">儲存設定</button>
+    <button class="btn btn-sm" style="background:#fff;border:1px solid #ddd;color:#333" onclick="forceRefresh()">重新整理裝置</button>
     <button class="btn btn-danger btn-sm" onclick="deleteChannel()">刪除頻道</button>
   </div>
 
@@ -568,6 +569,14 @@ function buildCard(item, index) {
 }
 
 /* ── CRUD ── */
+async function forceRefresh() {
+  if (!curChannel) return;
+  await db.from('slideshow_channels')
+    .update({ force_refresh_at: new Date().toISOString() })
+    .eq('id', curChannel.id);
+  showStatus('已傳送重新整理指令');
+}
+
 async function saveOrder() {
   await Promise.all(items.map((it, i) =>
     db.from('slideshow_items').update({ display_order: i }).eq('id', it.id)

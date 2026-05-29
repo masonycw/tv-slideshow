@@ -350,6 +350,20 @@ async function init() {
   items = await fetchItems(channel.id);
   await startSlideshow();
 
+  // Realtime：管理頁按下重新整理時立刻 reload
+  db.channel('ch-refresh-' + channel.id)
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'slideshow_channels',
+      filter: `id=eq.${channel.id}`
+    }, (payload) => {
+      if (payload.new.force_refresh_at !== payload.old.force_refresh_at) {
+        location.reload();
+      }
+    })
+    .subscribe();
+
   // Periodic refresh
   setInterval(async () => {
     const prev = items.length;
