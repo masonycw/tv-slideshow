@@ -100,7 +100,6 @@
     }
     .toggle input:checked ~ .toggle-thumb { left:19px; }
     .settings-save { margin-left:auto; }
-    .effect-chk { display:flex; align-items:center; gap:5px; font-size:13px; color:#555; cursor:pointer; white-space:nowrap; }
 
     /* ── Upload zone ── */
     #upload-zone {
@@ -259,16 +258,7 @@
         <span id="sync-label" style="font-size:12px;color:#999">關</span>
       </div>
     </div>
-    <div class="setting-group">
-      <label>切換效果</label>
-      <div id="effects-checkboxes" style="display:flex;gap:10px;flex-wrap:wrap;">
-        <label class="effect-chk"><input type="checkbox" value="fade"> 淡入淡出</label>
-        <label class="effect-chk"><input type="checkbox" value="slide-left"> 左滑</label>
-        <label class="effect-chk"><input type="checkbox" value="slide-up"> 上滑</label>
-        <label class="effect-chk"><input type="checkbox" value="zoom"> 縮放</label>
-      </div>
-    </div>
-    <button class="btn btn-blue btn-sm settings-save" onclick="saveChannelSettings()">儲存設定</button>
+<button class="btn btn-blue btn-sm settings-save" onclick="saveChannelSettings()">儲存設定</button>
     <button class="btn btn-danger btn-sm" onclick="deleteChannel()">刪除頻道</button>
   </div>
 
@@ -421,10 +411,6 @@ async function selectChannel(ch) {
   const syncInput = document.getElementById('ch-sync');
   syncInput.checked = ch.sync_enabled;
   document.getElementById('sync-label').textContent = ch.sync_enabled ? '開' : '關';
-  const enabled = ch.enabled_effects || ['fade','slide-left','slide-up','zoom'];
-  document.querySelectorAll('#effects-checkboxes input').forEach(cb => {
-    cb.checked = enabled.includes(cb.value);
-  });
 
   document.getElementById('ch-settings').classList.add('show');
   renderChannelBar();
@@ -436,17 +422,15 @@ async function saveChannelSettings() {
   const name     = document.getElementById('ch-name').value.trim();
   const interval = parseInt(document.getElementById('ch-interval').value, 10) * 1000;
   const sync     = document.getElementById('ch-sync').checked;
-  const effects  = [...document.querySelectorAll('#effects-checkboxes input:checked')].map(cb => cb.value);
   if (!name) { showStatus('請輸入頻道名稱', true); return; }
   if (isNaN(interval) || interval < 2000) { showStatus('停留秒數最少 2 秒', true); return; }
-  if (effects.length === 0) { showStatus('至少選擇一種切換效果', true); return; }
 
   const { error } = await db.from('slideshow_channels')
-    .update({ name, interval_ms: interval, sync_enabled: sync, enabled_effects: effects })
+    .update({ name, interval_ms: interval, sync_enabled: sync })
     .eq('id', curChannel.id);
   if (error) { showStatus('儲存失敗：' + error.message, true); return; }
 
-  curChannel = { ...curChannel, name, interval_ms: interval, sync_enabled: sync, enabled_effects: effects };
+  curChannel = { ...curChannel, name, interval_ms: interval, sync_enabled: sync };
   channels   = channels.map(c => c.id === curChannel.id ? curChannel : c);
   document.getElementById('sync-label').textContent = sync ? '開' : '關';
   renderChannelBar();

@@ -237,8 +237,7 @@ async function advance(forceIdx) {
     idx = (curIdx + 1) % items.length;
   }
 
-  const pool   = (channel.enabled_effects?.length > 0) ? channel.enabled_effects : ['fade'];
-  const effect = pick(pool);
+  const effect = 'fade';
 
   await showSlide(idx, effect);
 }
@@ -303,7 +302,7 @@ async function fetchItems(channelId) {
 async function fetchChannel(slug) {
   const { data } = await db
     .from('slideshow_channels')
-    .select('id, name, slug, interval_ms, sync_enabled, enabled_effects')
+    .select('id, name, slug, interval_ms, sync_enabled')
     .eq('slug', slug)
     .single();
   return data;
