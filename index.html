@@ -55,9 +55,6 @@
     }
     #caption.show { opacity:1; }
 
-    /* Progress bar */
-    #prog-bar  { position:absolute; bottom:0; left:0; right:0; height:3px; background:rgba(255,255,255,.15); z-index:11; }
-    #prog-fill { height:100%; width:0; background:rgba(255,255,255,.7); }
 
     /* Empty */
     #empty { display:none; position:absolute; inset:0; flex-direction:column; align-items:center;
@@ -80,7 +77,6 @@
   <div class="slot" id="slot-a"></div>
   <div class="slot" id="slot-b"></div>
   <div id="caption"></div>
-  <div id="prog-bar"><div id="prog-fill"></div></div>
   <div id="empty">
     <p>此頻道尚無內容</p>
     <small>請前往管理頁面上傳照片或影片</small>
@@ -91,7 +87,6 @@
 const { createClient } = window.supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const EFFECTS  = ['fade','slide-left','slide-up','zoom'];
 const TRANS_MS = 900;
 
 let channel = null; // { id, slug, interval_ms, sync_enabled }
@@ -107,7 +102,6 @@ const slotA   = document.getElementById('slot-a');
 const slotB   = document.getElementById('slot-b');
 const capEl   = document.getElementById('caption');
 const emptyEl = document.getElementById('empty');
-const fill    = document.getElementById('prog-fill');
 
 const slot  = (n) => n === 'a' ? slotA : slotB;
 const other = (n) => n === 'a' ? 'b' : 'a';
@@ -119,30 +113,10 @@ function preload(item) {
   return new Promise(r => { const i = new Image(); i.onload = i.onerror = r; i.src = item.public_url; });
 }
 
-/* ── Progress bar ── */
+/* ── Timer stop ── */
 function stopProgress() {
   clearInterval(freeTimer);
   if (syncRaf) { cancelAnimationFrame(syncRaf); syncRaf = null; }
-  fill.style.transition = 'none';
-  fill.style.width = '0%';
-}
-
-function startSyncProgress() {
-  function frame() {
-    const pct = (Date.now() % channel.interval_ms) / channel.interval_ms * 100;
-    fill.style.width = pct + '%';
-    syncRaf = requestAnimationFrame(frame);
-  }
-  fill.style.transition = 'none';
-  syncRaf = requestAnimationFrame(frame);
-}
-
-function startFreeProgress(durationMs) {
-  fill.style.transition = 'none';
-  fill.style.width = '0%';
-  void fill.offsetWidth;
-  fill.style.transition = `width ${durationMs}ms linear`;
-  fill.style.width = '100%';
 }
 
 /* ── Slot render ── */
@@ -163,11 +137,6 @@ function buildVideoSlot(el, item, onEnded) {
   vid.playsInline = true;
   vid.loop = false;
   vid.addEventListener('ended', onEnded);
-  vid.addEventListener('timeupdate', () => {
-    if (vid.duration) {
-      fill.style.width = (vid.currentTime / vid.duration * 100) + '%';
-    }
-  });
   el.innerHTML = '';
   el.appendChild(vid);
   vid.play().catch(() => {});
@@ -189,8 +158,6 @@ async function showSlide(idx, effect) {
   nxt.style.zIndex = '2';
 
   if (item.file_type === 'video') {
-    fill.style.transition = 'none';
-    fill.style.width = '0%';
     buildVideoSlot(nxt, item, () => advance());
   } else {
     buildImageSlot(nxt, item);
@@ -270,19 +237,10 @@ async function advance(forceIdx) {
     idx = (curIdx + 1) % items.length;
   }
 
-  const effect = items[idx].file_type === 'video'
-    ? pick(['fade','slide-left','slide-up','zoom'])
-    : pick(EFFECTS);
+  const pool   = (channel.enabled_effects?.length > 0) ? channel.enabled_effects : ['fade'];
+  const effect = pick(pool);
 
   await showSlide(idx, effect);
-
-  if (items[idx].file_type !== 'video') {
-    if (channel.sync_enabled) {
-      startSyncProgress();
-    } else {
-      startFreeProgress(channel.interval_ms);
-    }
-  }
 }
 
 /* ── Sync timer ── */
@@ -322,11 +280,6 @@ async function startSlideshow() {
   stopProgress();
   await showSlide(idx, 'fade');
 
-  if (items[idx].file_type !== 'video') {
-    if (channel.sync_enabled) startSyncProgress();
-    else startFreeProgress(channel.interval_ms);
-  }
-
   if (channel.sync_enabled) startSyncLoop();
   else startFreeTimer();
 
@@ -350,7 +303,7 @@ async function fetchItems(channelId) {
 async function fetchChannel(slug) {
   const { data } = await db
     .from('slideshow_channels')
-    .select('id, name, slug, interval_ms, sync_enabled')
+    .select('id, name, slug, interval_ms, sync_enabled, enabled_effects')
     .eq('slug', slug)
     .single();
   return data;
