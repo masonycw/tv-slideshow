@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>輪播展示</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #000;
+      overflow: hidden;
+      cursor: none;
+      font-family: 'Noto Sans TC', system-ui, -apple-system, sans-serif;
+    }
+
+    #stage {
+      position: relative;
+      width: 100%; height: 100%;
+      overflow: hidden;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      opacity: 0;
+      z-index: 0;
+      will-change: opacity, transform;
+    }
+
+    /* Ken Burns 動畫 */
+    @keyframes kb1 { 0% { transform: scale(1.00) translate( 0%,  0%); } 100% { transform: scale(1.08) translate(-2%, -1%); } }
+    @keyframes kb2 { 0% { transform: scale(1.08) translate( 2%,  1%); } 100% { transform: scale(1.00) translate( 0%,  0%); } }
+    @keyframes kb3 { 0% { transform: scale(1.05) translate(-2%,  1%); } 100% { transform: scale(1.05) translate( 2%, -1%); } }
+    @keyframes kb4 { 0% { transform: scale(1.00) translate( 1%, -1%); } 100% { transform: scale(1.10) translate(-1%,  1%); } }
+
+    .kb1 { animation: kb1 var(--dur, 8s) ease-in-out both; }
+    .kb2 { animation: kb2 var(--dur, 8s) ease-in-out both; }
+    .kb3 { animation: kb3 var(--dur, 8s) ease-in-out both; }
+    .kb4 { animation: kb4 var(--dur, 8s) ease-in-out both; }
+
+    #caption {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      z-index: 10;
+      padding: 80px 60px 40px;
+      background: linear-gradient(transparent, rgba(0,0,0,0.75));
+      color: #fff;
+      font-size: clamp(18px, 2.4vw, 44px);
+      font-weight: 300;
+      letter-spacing: 0.05em;
+      line-height: 1.5;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+      pointer-events: none;
+    }
+    #caption.show { opacity: 1; }
+
+    #progress-bar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 3px;
+      background: rgba(255,255,255,0.15);
+      z-index: 11;
+    }
+    #progress-fill {
+      height: 100%;
+      width: 0;
+      background: rgba(255,255,255,0.7);
+    }
+
+    #empty {
+      display: none;
+      position: absolute;
+      inset: 0;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: rgba(255,255,255,0.35);
+      z-index: 5;
+    }
+    #empty.show { display: flex; }
+    #empty p       { font-size: 28px; font-weight: 300; }
+    #empty small   { font-size: 15px; opacity: 0.55; }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <div class="slide" id="sl-a"></div>
+    <div class="slide" id="sl-b"></div>
+    <div id="caption"></div>
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+    <div id="empty">
+      <p>尚無輪播照片</p>
+      <small>請前往管理頁面上傳照片</small>
+    </div>
+  </div>
+
+  <script>
+    const { createClient } = window.supabase;
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const EFFECTS  = ['fade', 'slide-left', 'slide-up', 'zoom', 'kb'];
+    const KB_NAMES = ['kb1', 'kb2', 'kb3', 'kb4'];
+    const TRANS_MS = 900;
+
+    let photos = [], idx = 0, active = 'a', timer = null;
+
+    const slA    = document.getElementById('sl-a');
+    const slB    = document.getElementById('sl-b');
+    const capEl  = document.getElementById('caption');
+    const emptyEl= document.getElementById('empty');
+    const fill   = document.getElementById('progress-fill');
+
+    const sl      = (n) => n === 'a' ? slA : slB;
+    const other   = (n) => n === 'a' ? 'b' : 'a';
+    const pick    = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const preload = (url) => new Promise(r => { const i = new Image(); i.onload = i.onerror = r; i.src = url; });
+
+    function resetEl(el) {
+      el.removeAttribute('style');
+      el.className = 'slide';
+    }
+
+    function startProgress() {
+      fill.style.transition = 'none';
+      fill.style.width = '0%';
+      void fill.offsetWidth;
+      fill.style.transition = `width ${SLIDESHOW_INTERVAL}ms linear`;
+      fill.style.width = '100%';
+    }
+
+    async function show(photo, effect) {
+      const nextName = other(active);
+      const cur = sl(active);
+      const nxt = sl(nextName);
+
+      await preload(photo.public_url);
+
+      // 設定新圖層
+      resetEl(nxt);
+      nxt.style.backgroundImage = `url("${photo.public_url}")`;
+      nxt.style.zIndex = '2';
+
+      // Caption
+      if (photo.caption && photo.caption.trim()) {
+        capEl.textContent = photo.caption;
+        capEl.classList.add('show');
+      } else {
+        capEl.classList.remove('show');
+      }
+
+      // 套用切換效果
+      if (effect === 'kb' || effect === 'fade') {
+        nxt.style.setProperty('--dur', SLIDESHOW_INTERVAL + 'ms');
+        nxt.style.opacity = '0';
+        nxt.style.transition = `opacity ${TRANS_MS}ms ease-in-out`;
+        if (effect === 'kb') nxt.classList.add(pick(KB_NAMES));
+        void nxt.offsetWidth;
+        nxt.style.opacity = '1';
+
+        cur.style.transition = `opacity ${TRANS_MS}ms ease-in-out`;
+        cur.style.opacity = '0';
+
+      } else if (effect === 'slide-left') {
+        nxt.style.transform = 'translateX(100%)';
+        nxt.style.opacity = '1';
+        nxt.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1)`;
+        void nxt.offsetWidth;
+        nxt.style.transform = 'translateX(0)';
+
+        cur.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1), opacity ${TRANS_MS}ms ease`;
+        cur.style.transform = 'translateX(-20%)';
+        cur.style.opacity = '0';
+
+      } else if (effect === 'slide-up') {
+        nxt.style.transform = 'translateY(100%)';
+        nxt.style.opacity = '1';
+        nxt.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1)`;
+        void nxt.offsetWidth;
+        nxt.style.transform = 'translateY(0)';
+
+        cur.style.transition = `transform ${TRANS_MS}ms cubic-bezier(.4,0,.2,1), opacity ${TRANS_MS}ms ease`;
+        cur.style.transform = 'translateY(-20%)';
+        cur.style.opacity = '0';
+
+      } else { // zoom
+        nxt.style.transform = 'scale(1.12)';
+        nxt.style.opacity = '0';
+        nxt.style.transition = `opacity ${TRANS_MS}ms ease-in-out, transform ${TRANS_MS}ms ease-out`;
+        void nxt.offsetWidth;
+        nxt.style.opacity = '1';
+        nxt.style.transform = 'scale(1)';
+
+        cur.style.transition = `opacity ${TRANS_MS}ms ease-in-out`;
+        cur.style.opacity = '0';
+      }
+
+      cur.style.zIndex = '1';
+      active = nextName;
+
+      setTimeout(() => {
+        resetEl(cur);
+      }, TRANS_MS + 100);
+    }
+
+    async function advance() {
+      if (photos.length === 0) return;
+      idx = (idx + 1) % photos.length;
+      if (photos.length > 1) preload(photos[(idx + 1) % photos.length].public_url);
+      await show(photos[idx], pick(EFFECTS));
+      startProgress();
+    }
+
+    async function start() {
+      if (photos.length === 0) { emptyEl.classList.add('show'); return; }
+      emptyEl.classList.remove('show');
+      idx = 0;
+      clearInterval(timer);
+      await show(photos[0], 'fade');
+      startProgress();
+      if (photos.length > 1) preload(photos[1].public_url);
+      timer = setInterval(advance, SLIDESHOW_INTERVAL);
+    }
+
+    async function fetchPhotos() {
+      const { data } = await db
+        .from('slideshow_items')
+        .select('id, public_url, caption')
+        .eq('active', true)
+        .order('display_order');
+      return data || [];
+    }
+
+    async function init() {
+      photos = await fetchPhotos();
+      await start();
+
+      setInterval(async () => {
+        const wasEmpty = photos.length === 0;
+        photos = await fetchPhotos();
+        if (wasEmpty && photos.length > 0) await start();
+      }, REFRESH_INTERVAL);
+    }
+
+    init();
+  </script>
+</body>
+</html>

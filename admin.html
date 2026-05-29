@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>輪播管理</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f0f2f5;
+      color: #333;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    header {
+      background: #1c1c1e;
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: 0 2px 8px rgba(0,0,0,.3);
+    }
+
+    header h1 { font-size: 17px; font-weight: 600; flex: 1; letter-spacing: 0.02em; }
+
+    #key-form { display: flex; gap: 8px; align-items: center; }
+
+    #key-input {
+      padding: 7px 12px;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 7px;
+      font-size: 13px;
+      width: 280px;
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      outline: none;
+      transition: border-color .2s;
+    }
+    #key-input:focus { border-color: rgba(255,255,255,.5); }
+    #key-input::placeholder { color: rgba(255,255,255,.35); }
+
+    .btn {
+      padding: 7px 15px;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: opacity .15s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .btn:hover { opacity: .8; }
+    .btn-primary { background: #34c759; color: #fff; }
+    .btn-ghost   { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.15); }
+    .btn-danger  { background: #ff3b30; color: #fff; }
+
+    /* Status bar */
+    #status-bar {
+      display: none;
+      text-align: center;
+      padding: 8px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    #status-bar.show        { display: block; background: #e8f5e9; color: #2e7d32; }
+    #status-bar.show.error  { background: #fce4ec; color: #b71c1c; }
+
+    /* Main layout */
+    #main { max-width: 1280px; margin: 0 auto; padding: 24px; }
+
+    /* Upload zone */
+    #upload-zone {
+      background: #fff;
+      border: 2px dashed #ccc;
+      border-radius: 14px;
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      margin-bottom: 24px;
+      transition: border-color .2s, background .2s;
+    }
+    #upload-zone:hover, #upload-zone.dragover {
+      border-color: #007aff;
+      background: #f0f6ff;
+    }
+    #upload-zone .upload-icon { font-size: 40px; margin-bottom: 10px; }
+    #upload-zone p    { color: #555; font-size: 15px; margin-bottom: 6px; }
+    #upload-zone small { color: #999; font-size: 12px; }
+    #file-input { display: none; }
+
+    /* Section header */
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .section-header h2 { font-size: 15px; font-weight: 600; color: #444; }
+    #photo-count { font-size: 13px; color: #999; }
+
+    /* Photo grid */
+    #photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 16px;
+    }
+
+    .photo-card {
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,.1);
+      transition: box-shadow .2s, opacity .2s, transform .1s;
+      cursor: grab;
+    }
+    .photo-card:active { cursor: grabbing; }
+    .photo-card.dragging  { opacity: .45; transform: scale(.97); }
+    .photo-card.drag-over { box-shadow: 0 0 0 2.5px #007aff; }
+    .photo-card.inactive  { opacity: .5; }
+
+    .card-thumb {
+      height: 155px;
+      background-size: cover;
+      background-position: center;
+      background-color: #e5e5ea;
+      position: relative;
+    }
+
+    .card-order {
+      position: absolute;
+      top: 8px; left: 8px;
+      background: rgba(0,0,0,.55);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 5px;
+    }
+
+    .card-body { padding: 10px 12px 12px; }
+
+    .card-caption {
+      width: 100%;
+      border: 1px solid #e0e0e0;
+      border-radius: 7px;
+      padding: 6px 9px;
+      font-size: 13px;
+      resize: none;
+      outline: none;
+      font-family: inherit;
+      color: #333;
+      line-height: 1.4;
+      transition: border-color .15s;
+    }
+    .card-caption:focus { border-color: #007aff; }
+
+    .card-actions {
+      display: flex;
+      gap: 7px;
+      margin-top: 8px;
+    }
+
+    .toggle-btn {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid #e0e0e0;
+      border-radius: 7px;
+      background: #f5f5f7;
+      color: #666;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .toggle-btn.on {
+      background: #e8f5e9;
+      border-color: #81c784;
+      color: #2e7d32;
+    }
+
+    .delete-btn {
+      padding: 6px 10px;
+      border: 1px solid #ffcdd2;
+      border-radius: 7px;
+      background: #fff8f8;
+      color: #c62828;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background .15s;
+    }
+    .delete-btn:hover { background: #ffcdd2; }
+
+    /* Empty / hint */
+    #empty-hint {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 60px 0;
+      color: #aaa;
+      font-size: 15px;
+    }
+
+    /* Loading overlay */
+    #loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,.65);
+      backdrop-filter: blur(4px);
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      font-size: 17px;
+      color: #444;
+      gap: 12px;
+    }
+    #loading-overlay.show { display: flex; }
+
+    .spinner {
+      width: 24px; height: 24px;
+      border: 3px solid #ddd;
+      border-top-color: #007aff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>輪播管理</h1>
+    <div id="key-form">
+      <input type="password" id="key-input" placeholder="Supabase Service Role Key">
+      <button class="btn btn-primary" id="connect-btn">連線</button>
+      <a class="btn btn-ghost" href="index.html" target="_blank">開啟展示頁</a>
+    </div>
+  </header>
+
+  <div id="status-bar"></div>
+
+  <div id="main">
+    <div id="upload-zone">
+      <input type="file" id="file-input" multiple accept="image/*">
+      <div class="upload-icon">+</div>
+      <p>點擊或拖曳照片到此處上傳</p>
+      <small>支援 JPG、PNG、WebP、GIF，單檔最大 50 MB</small>
+    </div>
+
+    <div class="section-header">
+      <h2>目前輪播照片</h2>
+      <span id="photo-count"></span>
+    </div>
+
+    <div id="photo-grid">
+      <div id="empty-hint">請輸入 Service Role Key 後點擊連線</div>
+    </div>
+  </div>
+
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <span id="loading-msg">處理中...</span>
+  </div>
+
+  <script>
+    const { createClient } = window.supabase;
+    let adminClient = null;
+    let items = [];
+    let dragSrc = null;
+
+    /* ── UI helpers ── */
+    function showStatus(msg, isError = false) {
+      const bar = document.getElementById('status-bar');
+      bar.textContent = msg;
+      bar.className = 'show' + (isError ? ' error' : '');
+      clearTimeout(bar._t);
+      bar._t = setTimeout(() => bar.classList.remove('show'), 3000);
+    }
+
+    function setLoading(on, msg = '處理中...') {
+      document.getElementById('loading-msg').textContent = msg;
+      document.getElementById('loading-overlay').classList.toggle('show', on);
+    }
+
+    /* ── Connect ── */
+    async function connect() {
+      const key = document.getElementById('key-input').value.trim();
+      if (!key) { showStatus('請輸入 Service Role Key', true); return; }
+
+      const client = createClient(SUPABASE_URL, key, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      });
+
+      const { error } = await client.from('slideshow_items').select('id').limit(1);
+      if (error) { showStatus('連線失敗：' + error.message, true); return; }
+
+      adminClient = client;
+      sessionStorage.setItem('sb_srk', key);
+      showStatus('連線成功');
+      await loadItems();
+    }
+
+    document.getElementById('connect-btn').addEventListener('click', connect);
+    document.getElementById('key-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') connect();
+    });
+
+    /* ── Load & render ── */
+    async function loadItems() {
+      if (!adminClient) return;
+      const { data, error } = await adminClient
+        .from('slideshow_items')
+        .select('*')
+        .order('display_order');
+      if (error) { showStatus('載入失敗：' + error.message, true); return; }
+      items = data || [];
+      renderGrid();
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('photo-grid');
+      const countEl = document.getElementById('photo-count');
+      countEl.textContent = items.length ? `共 ${items.length} 張` : '';
+
+      grid.innerHTML = '';
+      if (items.length === 0) {
+        grid.innerHTML = '<div id="empty-hint">尚無照片，請上傳</div>';
+        return;
+      }
+
+      items.forEach((item, i) => grid.appendChild(buildCard(item, i)));
+    }
+
+    function buildCard(item, index) {
+      const card = document.createElement('div');
+      card.className = 'photo-card' + (item.active ? '' : ' inactive');
+      card.dataset.id = item.id;
+      card.draggable = true;
+
+      card.innerHTML = `
+        <div class="card-thumb" style="background-image:url('${item.public_url}')">
+          <span class="card-order">#${index + 1}</span>
+        </div>
+        <div class="card-body">
+          <textarea class="card-caption" rows="2" placeholder="說明文字（選填）">${item.caption || ''}</textarea>
+          <div class="card-actions">
+            <button class="toggle-btn ${item.active ? 'on' : ''}">${item.active ? '顯示中' : '已隱藏'}</button>
+            <button class="delete-btn">&#128465;</button>
+          </div>
+        </div>
+      `;
+
+      /* Caption auto-save */
+      let captionTimer = null;
+      const textarea = card.querySelector('.card-caption');
+      textarea.addEventListener('dragstart', (e) => e.stopPropagation());
+      textarea.addEventListener('input', () => {
+        clearTimeout(captionTimer);
+        captionTimer = setTimeout(() => updateCaption(item.id, textarea.value), 800);
+      });
+
+      /* Toggle active */
+      card.querySelector('.toggle-btn').addEventListener('click', () => toggleActive(item.id, !item.active));
+
+      /* Delete */
+      card.querySelector('.delete-btn').addEventListener('click', () => deleteItem(item));
+
+      /* Drag-to-reorder */
+      card.addEventListener('dragstart', (e) => {
+        dragSrc = card;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        document.querySelectorAll('.photo-card').forEach(c => c.classList.remove('drag-over'));
+      });
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (dragSrc !== card) card.classList.add('drag-over');
+      });
+      card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+      card.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        if (!dragSrc || dragSrc === card) return;
+
+        const grid = document.getElementById('photo-grid');
+        const cards = [...grid.querySelectorAll('.photo-card')];
+        const srcIdx = cards.indexOf(dragSrc);
+        const dstIdx = cards.indexOf(card);
+
+        const [moved] = items.splice(srcIdx, 1);
+        items.splice(dstIdx, 0, moved);
+        renderGrid();
+        await saveOrder();
+      });
+
+      return card;
+    }
+
+    /* ── CRUD helpers ── */
+    async function saveOrder() {
+      await Promise.all(
+        items.map((item, i) =>
+          adminClient.from('slideshow_items').update({ display_order: i }).eq('id', item.id)
+        )
+      );
+      showStatus('順序已儲存');
+    }
+
+    async function updateCaption(id, caption) {
+      const { error } = await adminClient
+        .from('slideshow_items')
+        .update({ caption: caption.trim() || null })
+        .eq('id', id);
+      if (!error) showStatus('說明已儲存');
+    }
+
+    async function toggleActive(id, newState) {
+      const { error } = await adminClient
+        .from('slideshow_items')
+        .update({ active: newState })
+        .eq('id', id);
+      if (!error) {
+        const item = items.find(i => i.id === id);
+        if (item) item.active = newState;
+        renderGrid();
+      }
+    }
+
+    async function deleteItem(item) {
+      if (!confirm('確定要刪除這張照片嗎？')) return;
+      setLoading(true, '刪除中...');
+
+      await adminClient.storage.from('slideshow').remove([item.storage_path]);
+      const { error } = await adminClient.from('slideshow_items').delete().eq('id', item.id);
+
+      setLoading(false);
+      if (error) { showStatus('刪除失敗：' + error.message, true); return; }
+
+      items = items.filter(i => i.id !== item.id);
+      renderGrid();
+      showStatus('已刪除');
+    }
+
+    /* ── Upload ── */
+    async function handleFiles(files) {
+      if (!adminClient) { showStatus('請先連線', true); return; }
+      const images = [...files].filter(f => f.type.startsWith('image/'));
+      if (images.length === 0) return;
+
+      let done = 0;
+      setLoading(true, `上傳中 0 / ${images.length}…`);
+
+      for (const file of images) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+        const { error: upErr } = await adminClient.storage
+          .from('slideshow')
+          .upload(filename, file, { contentType: file.type });
+
+        if (upErr) { showStatus(`${file.name} 上傳失敗：${upErr.message}`, true); continue; }
+
+        const { data: { publicUrl } } = adminClient.storage.from('slideshow').getPublicUrl(filename);
+
+        const { error: dbErr } = await adminClient.from('slideshow_items').insert({
+          storage_path: filename,
+          public_url: publicUrl,
+          caption: null,
+          display_order: items.length + done,
+          active: true
+        });
+
+        if (dbErr) { showStatus(`${file.name} 寫入失敗：${dbErr.message}`, true); continue; }
+        done++;
+        document.getElementById('loading-msg').textContent = `上傳中 ${done} / ${images.length}…`;
+      }
+
+      setLoading(false);
+      showStatus(`成功上傳 ${done} 張照片`);
+      document.getElementById('file-input').value = '';
+      await loadItems();
+    }
+
+    document.getElementById('file-input').addEventListener('change', (e) => handleFiles(e.target.files));
+    document.getElementById('upload-zone').addEventListener('click', () => {
+      document.getElementById('file-input').click();
+    });
+
+    const zone = document.getElementById('upload-zone');
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+    });
+
+    /* ── Auto-restore session key ── */
+    const savedKey = sessionStorage.getItem('sb_srk');
+    if (savedKey) {
+      document.getElementById('key-input').value = savedKey;
+      connect();
+    }
+  </script>
+</body>
+</html>
