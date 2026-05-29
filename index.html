@@ -302,7 +302,7 @@ async function fetchItems(channelId) {
 async function fetchChannel(slug) {
   const { data } = await db
     .from('slideshow_channels')
-    .select('id, name, slug, interval_ms, sync_enabled, force_refresh_at')
+    .select('id, name, slug, interval_ms, sync_enabled')
     .eq('slug', slug)
     .single();
   return data;
@@ -350,18 +350,19 @@ async function init() {
   items = await fetchItems(channel.id);
   await startSlideshow();
 
-  // 每 10 秒檢查是否有強制重新整理指令
-  let knownRefreshAt = channel.force_refresh_at ?? null;
-  setInterval(async () => {
-    const { data } = await db
-      .from('slideshow_channels')
-      .select('force_refresh_at')
-      .eq('id', channel.id)
-      .single();
-    if (data?.force_refresh_at && data.force_refresh_at !== knownRefreshAt) {
-      location.reload();
-    }
-  }, 10000);
+  // Realtime：管理頁按下重新整理時立刻 reload
+  db.channel('ch-refresh-' + channel.id)
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'slideshow_channels',
+      filter: `id=eq.${channel.id}`
+    }, (payload) => {
+      if (payload.new.force_refresh_at !== payload.old.force_refresh_at) {
+        location.reload();
+      }
+    })
+    .subscribe();
 
   // Periodic refresh
   setInterval(async () => {
