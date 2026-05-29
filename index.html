@@ -350,7 +350,9 @@ async function init() {
   items = await fetchItems(channel.id);
   await startSlideshow();
 
-  // Realtime：管理頁按下重新整理時立刻 reload
+  // Realtime（即時）+ 輪詢（保底）雙重觸發重新整理
+  let knownRefreshAt = channel.force_refresh_at ?? null;
+
   db.channel('ch-refresh-' + channel.id)
     .on('postgres_changes', {
       event: 'UPDATE',
@@ -358,11 +360,22 @@ async function init() {
       table: 'slideshow_channels',
       filter: `id=eq.${channel.id}`
     }, (payload) => {
-      if (payload.new.force_refresh_at !== payload.old.force_refresh_at) {
+      if (payload.new.force_refresh_at !== payload.old?.force_refresh_at) {
         location.reload();
       }
     })
     .subscribe();
+
+  setInterval(async () => {
+    const { data } = await db
+      .from('slideshow_channels')
+      .select('force_refresh_at')
+      .eq('id', channel.id)
+      .single();
+    if (data?.force_refresh_at && data.force_refresh_at !== knownRefreshAt) {
+      location.reload();
+    }
+  }, 30000);
 
   // Periodic refresh
   setInterval(async () => {
