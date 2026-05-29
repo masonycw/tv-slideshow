@@ -43,15 +43,6 @@
       position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
     }
 
-    /* Ken Burns */
-    @keyframes kb1 { 0%{transform:scale(1.00) translate( 0%, 0%)} 100%{transform:scale(1.08) translate(-2%,-1%)} }
-    @keyframes kb2 { 0%{transform:scale(1.08) translate( 2%, 1%)} 100%{transform:scale(1.00) translate( 0%, 0%)} }
-    @keyframes kb3 { 0%{transform:scale(1.05) translate(-2%, 1%)} 100%{transform:scale(1.05) translate( 2%,-1%)} }
-    @keyframes kb4 { 0%{transform:scale(1.00) translate( 1%,-1%)} 100%{transform:scale(1.10) translate(-1%, 1%)} }
-    .kb1 { animation:kb1 var(--dur,8s) ease-in-out both; }
-    .kb2 { animation:kb2 var(--dur,8s) ease-in-out both; }
-    .kb3 { animation:kb3 var(--dur,8s) ease-in-out both; }
-    .kb4 { animation:kb4 var(--dur,8s) ease-in-out both; }
 
     /* Caption */
     #caption {
@@ -100,8 +91,7 @@
 const { createClient } = window.supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const EFFECTS  = ['fade','slide-left','slide-up','zoom','kb'];
-const KB_LIST  = ['kb1','kb2','kb3','kb4'];
+const EFFECTS  = ['fade','slide-left','slide-up','zoom'];
 const TRANS_MS = 900;
 
 let channel = null; // { id, slug, interval_ms, sync_enabled }
@@ -156,14 +146,10 @@ function startFreeProgress(durationMs) {
 }
 
 /* ── Slot render ── */
-function buildImageSlot(el, item, durStr) {
+function buildImageSlot(el, item) {
   const div = document.createElement('div');
   div.className = 'slot-img';
   div.style.backgroundImage = `url("${item.public_url}")`;
-  if (durStr) {
-    div.style.setProperty('--dur', durStr);
-    div.classList.add(pick(KB_LIST));
-  }
   el.innerHTML = '';
   el.appendChild(div);
 }
@@ -202,15 +188,12 @@ async function showSlide(idx, effect) {
   nxt.className = 'slot';
   nxt.style.zIndex = '2';
 
-  const isKb  = (effect === 'kb') && item.file_type === 'image';
-  const durStr = isKb ? channel.interval_ms + 'ms' : null;
-
   if (item.file_type === 'video') {
     fill.style.transition = 'none';
     fill.style.width = '0%';
     buildVideoSlot(nxt, item, () => advance());
   } else {
-    buildImageSlot(nxt, item, isKb ? durStr : null);
+    buildImageSlot(nxt, item);
   }
 
   // Caption
@@ -222,7 +205,7 @@ async function showSlide(idx, effect) {
   }
 
   // Apply transition
-  if (effect === 'kb' || effect === 'fade') {
+  if (effect === 'fade') {
     nxt.style.opacity = '0';
     nxt.style.transition = `opacity ${TRANS_MS}ms ease-in-out`;
     void nxt.offsetWidth;
